@@ -49,6 +49,13 @@ client.on('ready', () => {
 
 // 🧼 Global moderation (skip only the exempt channel)
 client.on('messageCreate', async (message) => {
+  console.log('====== Message Event Triggered ======');
+  console.log(`Author: ${message.author.tag}`);
+  console.log(`Content: ${message.content}`);
+  console.log(`Channel: ${message.channel.name}`);
+  console.log(`Guild: ${message.guild?.name}`);
+  console.log('===================================');
+
   if (message.author.bot) return;
 
   // 🧼 Check if the message contains any filtered word or pattern
