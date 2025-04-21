@@ -33,11 +33,19 @@ let cooldown = false;
 
 // Load filtered words from the Replit database on bot startup
 async function loadFilteredWords() {
-  const storedWords = await db.get('filteredWords');
-  if (storedWords) {
-    filteredWords = storedWords;
+  try {
+    const storedWords = await db.get('filteredWords');
+    if (storedWords) {
+      filteredWords = storedWords;
+    } else {
+      // Initialize with empty array if no words found
+      await db.set('filteredWords', []);
+    }
+    console.log('Filtered words loaded successfully:', filteredWords);
+  } catch (error) {
+    console.error('Failed to load filtered words:', error);
+    filteredWords = []; // Fallback to empty array
   }
-  console.log('Filtered words loaded:', filteredWords);
 }
 
 // 🔑 Admin commands to manage filtered words
