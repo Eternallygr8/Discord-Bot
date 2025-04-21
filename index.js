@@ -1,24 +1,30 @@
 const { Client, GatewayIntentBits, PermissionsBitField } = require('discord.js');
-const Database = require('@replit/database');
-const db = new Database();
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.Attachment,  // Added for attachment handling
   ]
 });
 
 // 🔁 Toggle for guild applications
 let guildApplicationsOpen = true;
 
-// 🚫 Initial empty slur list
-let filteredWords = [];
-
-// List of words or phrases that are considered inappropriate
-const INAPPROPRIATE_WORDS = [
-  'nigger', 'nigga', 'chinga', 'faggot', 'retard', 'bitch', 'slut', 'cunt', 'motherfucker'
+// 🚫 Initial slur list with bypass variants
+const BANNED_PATTERNS = [
+  /n[\W_]*i[\W_]*g[\W_]*g[\W_]*a/i,
+  /n[\W_]*i[\W_]*g[\W_]*g[\W_]*e[\W_]*r/i,
+  /ch[\W_]*i[\W_]*g[\W_]*g[\W_]*a/i, // Chigga
+  /r[\W_]*e[\W_]*t[\W_]*a[\W_]*r[\W_]*d/i,
+  /f[\W_]*a[\W_]*g[\W_]*g[\W_]*o[\W_]*t/i,
+  /s[\W_]*l[\W_]*u[\W_]*r[\W_]*1/i,
+  /s[\W_]*l[\W_]*u[\W_]*r[\W_]*2/i,
+  /b[\W_]*i[\W_]*t[\W_]*c[\W_]*h/i,
+  /s[\W_]*l[\W_]*u[\W_]*t/i,
+  /c[\W_]*u[\W_]*n[\W_]*t/i,
+  /m[\W_]*o[\W_]*t[\W_]*h[\W_]*e[\W_]*r[\W_]*f[\W_]*u[\W_]*c[\W_]*k[\W_]*e[\W_]*r/i
 ];
 
 // ❌ Channels/categories where 'guild' response is disabled
@@ -31,39 +37,22 @@ const EXEMPT_CHANNEL_ID = '1362670205574054058';
 // Admin commands cooldown
 let cooldown = false;
 
-// Load filtered words from the Replit database on bot startup
-async function loadFilteredWords() {
-  try {
-    const storedWords = await db.get('filteredWords');
-    if (storedWords) {
-      filteredWords = storedWords;
-    } else {
-      // Initialize with empty array if no words found
-      await db.set('filteredWords', []);
-    }
-    console.log('Filtered words loaded successfully:', filteredWords);
-  } catch (error) {
-    console.error('Failed to load filtered words:', error);
-    filteredWords = []; // Fallback to empty array
-  }
-}
+// Load filtered words (slur list) from a database or static list
+let filteredWords = BANNED_PATTERNS;
 
-// 🔑 Admin commands to manage filtered words
+// Admin commands to manage filtered words
 const isAdmin = (message) => message.member?.permissions.has(PermissionsBitField.Flags.Administrator);
 
-client.on('ready', async () => {
+client.on('ready', () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
-
-  // Load filtered words from the database on startup
-  await loadFilteredWords();
 });
 
 // 🧼 Global moderation (skip only the exempt channel)
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
-  // 🧼 Check if the message contains any filtered word
-  const hasBannedWord = filteredWords.some((word) => message.content.toLowerCase().includes(word.toLowerCase()));
+  // 🧼 Check if the message contains any filtered word or pattern
+  const hasBannedWord = filteredWords.some((pattern) => pattern.test(message.content.toLowerCase()));
 
   if (hasBannedWord && message.channel.id !== EXEMPT_CHANNEL_ID) {
     try {
@@ -81,19 +70,8 @@ client.on('messageCreate', async (message) => {
     const word = message.content.slice(9).trim();
     if (!word) return message.reply('❌ Please provide a word to add to the filter.');
 
-    // Check if the word is inappropriate
-    if (INAPPROPRIATE_WORDS.some(inappropriateWord => word.toLowerCase().includes(inappropriateWord))) {
-      return message.reply('❌ This word or phrase is considered inappropriate and cannot be added to the filter.');
-    }
-
-    // Check if the word already exists in the filter
-    if (filteredWords.includes(word)) {
-      return message.reply('❌ This word is already in the filter.');
-    }
-
-    // Add the word to the filter
-    filteredWords.push(word);
-    await db.set('filteredWords', filteredWords);
+    // Add the word to the filter (if it's not already there)
+    filteredWords.push(new RegExp(word, 'i'));
     message.reply(`✅ "${word}" has been added to the filter.`);
   }
 
@@ -101,13 +79,8 @@ client.on('messageCreate', async (message) => {
     const word = message.content.slice(12).trim();
     if (!word) return message.reply('❌ Please provide a word to remove from the filter.');
 
-    const index = filteredWords.indexOf(word);
-    if (index === -1) {
-      return message.reply('❌ This word is not in the filter.');
-    }
-
-    filteredWords.splice(index, 1);
-    await db.set('filteredWords', filteredWords);
+    // Remove the word from the filter
+    filteredWords = filteredWords.filter((pattern) => !pattern.test(word));
     message.reply(`✅ "${word}" has been removed from the filter.`);
   }
 
@@ -115,7 +88,7 @@ client.on('messageCreate', async (message) => {
     if (filteredWords.length === 0) {
       return message.reply('⚠️ No words are currently in the filter.');
     }
-    message.reply(`Filtered words: ${filteredWords.join(', ')}`);
+    message.reply(`Filtered words: ${filteredWords.map((pattern) => pattern.source).join(', ')}`);
   }
 
   // 💬 Respond to "guild" mentions (only in allowed channels)
