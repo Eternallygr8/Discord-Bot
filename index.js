@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits, PermissionsBitField } = require('discord.js');
-const db = require('replit.database');
+const Database = require('@replit/database');
+const db = new Database();
 
 const client = new Client({
   intents: [
