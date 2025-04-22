@@ -1,66 +1,164 @@
-const { Client, GatewayIntentBits, PermissionsBitField } = require('discord.js');
+const { Client, GatewayIntentBits, PermissionsBitField, REST, Routes } = require('discord.js');
+require('dotenv').config();
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.Attachment,  // Added for attachment handling
+    GatewayIntentBits.MessageContent
   ]
 });
 
-// 🔁 Toggle for guild applications
 let guildApplicationsOpen = true;
 
-// 🚫 Initial slur list with bypass variants
+const MODERATOR_IDS = ['659065769275162624', '445222709950152704', '579301731200925697', '587937831930822657'];
+
 const BANNED_PATTERNS = [
   /n[\W_]*i[\W_]*g[\W_]*g[\W_]*a/i,
   /n[\W_]*i[\W_]*g[\W_]*g[\W_]*e[\W_]*r/i,
-  /ch[\W_]*i[\W_]*g[\W_]*g[\W_]*a/i, // Chigga
+  /ch[\W_]*i[\W_]*g[\W_]*g[\W_]*a/i,
   /r[\W_]*e[\W_]*t[\W_]*a[\W_]*r[\W_]*d/i,
   /f[\W_]*a[\W_]*g[\W_]*g[\W_]*o[\W_]*t/i,
-  /s[\W_]*l[\W_]*u[\W_]*r[\W_]*1/i,
-  /s[\W_]*l[\W_]*u[\W_]*r[\W_]*2/i,
+  /sl[\W_]*u[\W_]*r[\W_]*1/i,
+  /sl[\W_]*u[\W_]*r[\W_]*2/i,
   /b[\W_]*i[\W_]*t[\W_]*c[\W_]*h/i,
   /s[\W_]*l[\W_]*u[\W_]*t/i,
   /c[\W_]*u[\W_]*n[\W_]*t/i,
-  /m[\W_]*o[\W_]*t[\W_]*h[\W_]*e[\W_]*r[\W_]*f[\W_]*u[\W_]*c[\W_]*k[\W_]*e[\W_]*r/i
+  /m[\W_]*o[\W_]*t[\W_]*h[\W_]*e[\W_]*r[\W_]*f[\W_]*u[\W_]*c[\W_]*k[\W_]*e[\W_]*r/i,
+  /b[\W_]*a[\W_]*s[\W_]*t[\W_]*a[\W_]*r[\W_]*d/i,
+  /d[\W_]*i[\W_]*k/i,
+  /a[\W_]*s[\W_]*s/i,
+  /f[\W_]*u[\W_]*c[\W_]*k/i,
+  /p[\W_]*u[\W_]*s[\W_]*s/i,
+  /c[\W_]*o[\W_]*c[\W_]*k/i,
+  /t[\W_]*w[\W_]*a[\W_]*t/i,
+  /w[\W_]*h[\W_]*o[\W_]*r[\W_]*e/i,
+  /s[\W_]*h[\W_]*i[\W_]*t/i,
+  /b[\W_]*u[\W_]*m[\W_]*i[\W_]*s/i,
+  /f[\W_]*a[\W_]*g[\W_]*g/i
 ];
 
-// ❌ Channels/categories where 'guild' response is disabled
 const BLOCKED_CHANNEL_IDS = ['1361208111880339527', '1363099465170423819'];
 const BLOCKED_CATEGORY_IDS = ['1362327727922872460', '1361201521433378909'];
-
-// 🛑 Channel exempted from moderation (e.g., mod/test channel)
 const EXEMPT_CHANNEL_ID = '1362670205574054058';
 
-// Admin commands cooldown
-let cooldown = false;
+const TOKEN = process.env.TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID = process.env.GUILD_ID;
 
-// Load filtered words (slur list) from a database or static list
-let filteredWords = BANNED_PATTERNS;
+const commands = [
+  {
+    name: 'openapps',
+    description: 'Open guild applications for new members',
+  },
+  {
+    name: 'closeapps',
+    description: 'Close guild applications',
+  },
+  {
+    name: 'addword',
+    description: 'Add a word to the banned word filter',
+    options: [
+      {
+        name: 'word',
+        description: 'The word to add to the filter',
+        type: 3,
+        required: true,
+      }
+    ]
+  },
+  {
+    name: 'removeword',
+    description: 'Remove a word from the banned word filter',
+    options: [
+      {
+        name: 'word',
+        description: 'The word to remove from the filter',
+        type: 3,
+        required: true,
+      }
+    ]
+  }
+];
 
-// Admin commands to manage filtered words
-const isAdmin = (message) => message.member?.permissions.has(PermissionsBitField.Flags.Administrator);
+const rest = new REST({ version: '10' }).setToken(TOKEN);
+
+(async () => {
+  try {
+    console.log('Started refreshing application (/) commands.');
+    await rest.put(
+      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+      { body: commands }
+    );
+    console.log('Successfully reloaded application (/) commands.');
+  } catch (error) {
+    console.error('Error registering commands:', error);
+  }
+})();
 
 client.on('ready', () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 });
 
-// 🧼 Global moderation (skip only the exempt channel)
-client.on('messageCreate', async (message) => {
-  console.log('====== Message Event Triggered ======');
-  console.log(`Author: ${message.author.tag}`);
-  console.log(`Content: ${message.content}`);
-  console.log(`Channel: ${message.channel.name}`);
-  console.log(`Guild: ${message.guild?.name}`);
-  console.log('===================================');
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isCommand()) return;
 
+  const { commandName } = interaction;
+
+  if (commandName === 'openapps') {
+    const isAdmin = interaction.member?.permissions.has(PermissionsBitField.Flags.Administrator);
+    if (!isAdmin) return interaction.reply('❌ You don’t have permission to do that.');
+    guildApplicationsOpen = true;
+    return interaction.reply('✅ Guild applications are now **OPEN**.');
+  }
+
+  if (commandName === 'closeapps') {
+    const isAdmin = interaction.member?.permissions.has(PermissionsBitField.Flags.Administrator);
+    if (!isAdmin) return interaction.reply('❌ You don’t have permission to do that.');
+    guildApplicationsOpen = false;
+    return interaction.reply('🚫 Guild applications are now **CLOSED**.');
+  }
+
+  if (commandName === 'addword') {
+    if (!MODERATOR_IDS.includes(interaction.user.id)) {
+      return interaction.reply({ content: '❌ You don’t have permission to use this command.', ephemeral: true });
+    }
+
+    const word = interaction.options.getString('word');
+    const pattern = new RegExp(word.split('').join('[\\W_]*'), 'i');
+    BANNED_PATTERNS.push(pattern);
+
+    const reply = await interaction.reply({ content: `✅ "${word}" has been added to the banned word filter.`, ephemeral: true });
+    setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+  }
+
+  if (commandName === 'removeword') {
+    if (!MODERATOR_IDS.includes(interaction.user.id)) {
+      return interaction.reply({ content: '❌ You don’t have permission to use this command.', ephemeral: true });
+    }
+
+    const word = interaction.options.getString('word');
+    const patternToRemove = new RegExp(word.split('').join('[\\W_]*'), 'i');
+    const before = BANNED_PATTERNS.length;
+    const after = BANNED_PATTERNS.filter(p => p.toString() !== patternToRemove.toString());
+
+    if (before === after.length) {
+      const reply = await interaction.reply({ content: `⚠️ "${word}" was not found in the banned list.`, ephemeral: true });
+      return setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+    }
+
+    BANNED_PATTERNS.length = 0;
+    BANNED_PATTERNS.push(...after);
+
+    const reply = await interaction.reply({ content: `✅ "${word}" has been removed from the banned word filter.`, ephemeral: true });
+    setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+  }
+});
+
+client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
-  // 🧼 Check if the message contains any filtered word or pattern
-  const hasBannedWord = filteredWords.some((pattern) => pattern.test(message.content.toLowerCase()));
-
+  const hasBannedWord = BANNED_PATTERNS.some(pattern => pattern.test(message.content));
   if (hasBannedWord && message.channel.id !== EXEMPT_CHANNEL_ID) {
     try {
       await message.delete();
@@ -72,33 +170,6 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  // ⚙️ Admin-only toggle commands
-  if (message.content.startsWith('!addword ') && isAdmin(message)) {
-    const word = message.content.slice(9).trim();
-    if (!word) return message.reply('❌ Please provide a word to add to the filter.');
-
-    // Add the word to the filter (if it's not already there)
-    filteredWords.push(new RegExp(word, 'i'));
-    message.reply(`✅ "${word}" has been added to the filter.`);
-  }
-
-  if (message.content.startsWith('!removeword ') && isAdmin(message)) {
-    const word = message.content.slice(12).trim();
-    if (!word) return message.reply('❌ Please provide a word to remove from the filter.');
-
-    // Remove the word from the filter
-    filteredWords = filteredWords.filter((pattern) => !pattern.test(word));
-    message.reply(`✅ "${word}" has been removed from the filter.`);
-  }
-
-  if (message.content === '!listwords' && isAdmin(message)) {
-    if (filteredWords.length === 0) {
-      return message.reply('⚠️ No words are currently in the filter.');
-    }
-    message.reply(`Filtered words: ${filteredWords.map((pattern) => pattern.source).join(', ')}`);
-  }
-
-  // 💬 Respond to "guild" mentions (only in allowed channels)
   if (message.content.toLowerCase().includes('guild')) {
     if (
       BLOCKED_CHANNEL_IDS.includes(message.channel.id) ||
@@ -117,4 +188,4 @@ client.on('messageCreate', async (message) => {
   }
 });
 
-client.login(process.env.TOKEN);
+client.login(TOKEN);
