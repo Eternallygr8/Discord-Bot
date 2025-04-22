@@ -1,5 +1,9 @@
 const { Client, GatewayIntentBits, PermissionsBitField, REST, Routes } = require('discord.js');
 require('dotenv').config();
+const express = require('express'); // Add express for the server
+
+const app = express(); // Create an express app
+const port = process.env.PORT || 3000; // Use Render's PORT or default to 3000
 
 const client = new Client({
   intents: [
@@ -98,6 +102,16 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 client.on('ready', () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
+});
+
+// Setup simple HTTP server for uptime monitoring
+app.get('/', (req, res) => {
+  res.send('Bot is online!');
+});
+
+// Start the HTTP server
+app.listen(port, () => {
+  console.log(`Server is listening on port ${port}`);
 });
 
 client.on('interactionCreate', async (interaction) => {
