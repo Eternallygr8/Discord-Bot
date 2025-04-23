@@ -139,7 +139,13 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     const word = interaction.options.getString('word');
-    const pattern = new RegExp(word.split('').join('[\\W_]*'), 'i');
+    let pattern;
+    if (word.endsWith('*')) {
+      const base = word.slice(0, -1); // remove the *
+      pattern = new RegExp(base.split('').join('[\\W_]*') + '.*', 'i');
+    } else {
+      pattern = new RegExp(word.split('').join('[\\W_]*'), 'i');
+    }
     BANNED_PATTERNS.push(pattern);
 
     const reply = await interaction.reply({ content: `✅ "${word}" has been added to the banned word filter.`, ephemeral: true });
