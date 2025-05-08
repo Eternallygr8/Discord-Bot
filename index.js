@@ -201,9 +201,9 @@ client.on('interactionCreate', async (interaction) => {
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
-  // Check if the user has the "Guild Members" role
-  const excludedRole = 'Guild Members'; // Role to exclude from receiving the guild message
-  if (message.member?.roles.cache.some(role => role.name === excludedRole)) {
+  // Check if the user has the "Guild Members" role (using role ID)
+  const excludedRoleId = '1360904526017597450'; // Role ID to exclude from receiving the guild message
+  if (message.member?.roles.cache.has(excludedRoleId)) {
     return; // Prevent the message from being sent if the user has the "Guild Members" role
   }
 
