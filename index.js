@@ -23,6 +23,8 @@ const BANNED_PATTERNS = [
   /ch[\W_]*i[\W_]*g[\W_]*g[\W_]*a/i,
   /r[\W_]*e[\W_]*t[\W_]*a[\W_]*r[\W_]*d/i,
   /f[\W_]*a[\W_]*g[\W_]*g[\W_]*o[\W_]*t/i,
+  /sl[\W_]*u[\W_]*r[\W_]*1/i,
+  /sl[\W_]*u[\W_]*r[\W_]*2/i,
   /b[\W_]*i[\W_]*t[\W_]*c[\W_]*h/i,
   /s[\W_]*l[\W_]*u[\W_]*t/i,
   /c[\W_]*u[\W_]*n[\W_]*t/i,
@@ -198,6 +200,12 @@ client.on('interactionCreate', async (interaction) => {
 
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
+
+  // Check if the user has the "Guild Members" role
+  const excludedRole = 'Guild Members'; // Role to exclude from receiving the guild message
+  if (message.member?.roles.cache.some(role => role.name === excludedRole)) {
+    return; // Prevent the message from being sent if the user has the "Guild Members" role
+  }
 
   const hasBannedWord = BANNED_PATTERNS.some(pattern => pattern.test(message.content));
   if (hasBannedWord && message.channel.id !== EXEMPT_CHANNEL_ID) {
