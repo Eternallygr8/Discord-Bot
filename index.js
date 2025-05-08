@@ -1,9 +1,9 @@
 const { Client, GatewayIntentBits, PermissionsBitField, REST, Routes } = require('discord.js');
 require('dotenv').config();
-const express = require('express'); // Add express for the server
+const express = require('express');
 
-const app = express(); // Create an express app
-const port = process.env.PORT || 3000; // Use Render's PORT or default to 3000
+const app = express();
+const port = process.env.PORT || 3000;
 
 const client = new Client({
   intents: [
@@ -82,6 +82,10 @@ const commands = [
         required: true,
       }
     ]
+  },
+  {
+    name: 'listword',
+    description: 'List all words in the banned word filter',
   }
 ];
 
@@ -90,20 +94,11 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 (async () => {
   try {
     console.log('Started refreshing application (/) commands.');
-// First, clear existing commands
-await rest.put(
-  Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
-  { body: [] }
-);
-console.log('✅ Cleared old guild slash commands');
-
-// Then re-register them fresh
-await rest.put(
-  Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
-  { body: commands }
-);
-console.log('✅ Re-registered fresh slash commands');
-
+    await rest.put(
+      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+      { body: commands }
+    );
+    console.log('Successfully reloaded application (/) commands.');
   } catch (error) {
     console.error('Error registering commands:', error);
   }
@@ -113,12 +108,10 @@ client.on('ready', () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 });
 
-// Setup simple HTTP server for uptime monitoring
 app.get('/', (req, res) => {
   res.send('Bot is online!');
 });
 
-// Start the HTTP server
 app.listen(port, () => {
   console.log(`Server is listening on port ${port}`);
 });
@@ -150,7 +143,7 @@ client.on('interactionCreate', async (interaction) => {
     const word = interaction.options.getString('word');
     let pattern;
     if (word.endsWith('*')) {
-      const base = word.slice(0, -1); // remove the *
+      const base = word.slice(0, -1);
       pattern = new RegExp(base.split('').join('[\\W_]*') + '.*', 'i');
     } else {
       pattern = new RegExp(word.split('').join('[\\W_]*'), 'i');
@@ -181,6 +174,27 @@ client.on('interactionCreate', async (interaction) => {
 
     const reply = await interaction.reply({ content: `✅ "${word}" has been removed from the banned word filter.`, ephemeral: true });
     setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+  }
+
+  if (commandName === 'listword') {
+    if (!MODERATOR_IDS.includes(interaction.user.id)) {
+      return interaction.reply({ content: '❌ You don’t have permission to use this command.', ephemeral: true });
+    }
+
+    if (BANNED_PATTERNS.length === 0) {
+      return interaction.reply({ content: '⚠️ No words are currently banned.', ephemeral: true });
+    }
+
+    const cleanWords = BANNED_PATTERNS.map(p => {
+      const raw = p.source;
+      const cleaned = raw
+        .replace(/\[\\W_\]\*/g, '')
+        .replace(/\.\*/, '*')
+        .replace(/^\/|\/i$/g, '');
+      return `• \`${cleaned}\``;
+    }).join('\n');
+
+    return interaction.reply({ content: `🛑 **Banned Words:**\n${cleanWords}`, ephemeral: true });
   }
 });
 
