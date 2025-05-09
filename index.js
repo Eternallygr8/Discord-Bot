@@ -16,6 +16,7 @@ const client = new Client({
 let guildApplicationsOpen = true;
 
 const MODERATOR_IDS = ['659065769275162624', '445222709950152704', '579301731200925697', '587937831930822657'];
+const GUILD_MEMBER_ROLE_ID = '1360904526017597450';
 
 const BANNED_PATTERNS = [
   /n[\W_]*i[\W_]*g[\W_]*g[\W_]*a/i,
@@ -188,7 +189,7 @@ client.on('interactionCreate', async (interaction) => {
     const cleanWords = BANNED_PATTERNS.map(p => {
       const raw = p.source;
       const cleaned = raw
-        .replace(/\[\\W_\]\*/g, '')
+        .replace(/\\W_\*/g, '')
         .replace(/\.\*/, '*')
         .replace(/^\/|\/i$/g, '');
       return `• \`${cleaned}\``;
@@ -201,12 +202,7 @@ client.on('interactionCreate', async (interaction) => {
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
-  // Check if the user has the "Guild Members" role (using role ID)
-  const excludedRoleId = '1360904526017597450'; // Role ID to exclude from receiving the guild message
-  if (message.member?.roles.cache.has(excludedRoleId)) {
-    return; // Prevent the message from being sent if the user has the "Guild Members" role
-  }
-
+  // Always check for banned words
   const hasBannedWord = BANNED_PATTERNS.some(pattern => pattern.test(message.content));
   if (hasBannedWord && message.channel.id !== EXEMPT_CHANNEL_ID) {
     try {
@@ -219,7 +215,11 @@ client.on('messageCreate', async message => {
     return;
   }
 
-  if (message.content.toLowerCase().includes('guild')) {
+  // Only send guild join message to users who do NOT have the guild member role
+  if (
+    message.content.toLowerCase().includes('guild') &&
+    !message.member?.roles.cache.has(GUILD_MEMBER_ROLE_ID)
+  ) {
     if (
       BLOCKED_CHANNEL_IDS.includes(message.channel.id) ||
       BLOCKED_CATEGORY_IDS.includes(message.channel.parentId)
