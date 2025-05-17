@@ -17,6 +17,7 @@ let guildApplicationsOpen = true;
 
 const MODERATOR_IDS = ['659065769275162624', '445222709950152704', '579301731200925697', '587937831930822657'];
 const GUILD_MEMBER_ROLE_ID = '1360904526017597450';
+const EXEMPT_USER_IDS = ['445222709950152704'];
 
 const BANNED_PATTERNS = [
   /n[\W_]*i[\W_]*g[\W_]*g[\W_]*a/i,
@@ -166,15 +167,13 @@ client.on('interactionCreate', async (interaction) => {
     const after = BANNED_PATTERNS.filter(p => p.toString() !== patternToRemove.toString());
 
     if (before === after.length) {
-      const reply = await interaction.reply({ content: `⚠️ "${word}" was not found in the banned list.`, ephemeral: true });
-      return setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+      return interaction.reply({ content: `⚠️ "${word}" was not found in the banned list.`, ephemeral: true });
     }
 
     BANNED_PATTERNS.length = 0;
     BANNED_PATTERNS.push(...after);
 
-    const reply = await interaction.reply({ content: `✅ "${word}" has been removed from the banned word filter.`, ephemeral: true });
-    setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+    return interaction.reply({ content: `✅ "${word}" has been removed from the banned word filter.`, ephemeral: true });
   }
 
   if (commandName === 'listword') {
@@ -189,7 +188,7 @@ client.on('interactionCreate', async (interaction) => {
     const cleanWords = BANNED_PATTERNS.map(p => {
       const raw = p.source;
       const cleaned = raw
-        .replace(/\\W_\*/g, '')
+        .replace(/\\W_*\*/g, '')
         .replace(/\.\*/, '*')
         .replace(/^\/|\/i$/g, '');
       return `• \`${cleaned}\``;
@@ -202,17 +201,19 @@ client.on('interactionCreate', async (interaction) => {
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
-  // Always check for banned words
-  const hasBannedWord = BANNED_PATTERNS.some(pattern => pattern.test(message.content));
-  if (hasBannedWord && message.channel.id !== EXEMPT_CHANNEL_ID) {
-    try {
-      await message.delete();
-      const warning = await message.channel.send(`⚠️ <@${message.author.id}>, your message was removed due to inappropriate content.`);
-      setTimeout(() => warning.delete().catch(() => {}), 5000);
-    } catch (err) {
-      console.error('Failed to delete message or send warning:', err);
+  // Skip banned word check for exempt user(s)
+  if (!EXEMPT_USER_IDS.includes(message.author.id)) {
+    const hasBannedWord = BANNED_PATTERNS.some(pattern => pattern.test(message.content));
+    if (hasBannedWord && message.channel.id !== EXEMPT_CHANNEL_ID) {
+      try {
+        await message.delete();
+        const warning = await message.channel.send(`⚠️ <@${message.author.id}>, your message was removed due to inappropriate content.`);
+        setTimeout(() => warning.delete().catch(() => {}), 5000);
+      } catch (err) {
+        console.error('Failed to delete message or send warning:', err);
+      }
+      return;
     }
-    return;
   }
 
   // Only send guild join message to users who do NOT have the guild member role
