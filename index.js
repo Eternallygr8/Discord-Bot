@@ -231,7 +231,7 @@ client.on('messageCreate', async message => {
     const ticketChannelId = '1362328988126675056';
 
     const replyMessage = guildApplicationsOpen
-      ? `Hey <@${userID}>, it looks like you're interested in joining the guild! To become a member, please make sure you meet the requirements listed in <#${recruitmentChannelId}>. Once you've confirmed that, you can create a ticket in <#${ticketChannelId}>, and our staff members will verify your eligibility. After verification, you'll be ready to join! Good luck, and we look forward to seeing you in the guild!`
+      ? `Hey <@${userID}>, it looks like you're interested in joining the guild! To get started, please make sure you meet the requirements listed in <#${recruitmentChannelId}>. Then, take a look at the guild stats in <#1365329644848550008> and <#1365329738280865883> to decide which guild you'd like to join. Once you've made your choice, you can create a ticket in <#${ticketChannelId}>, and our staff members will verify your eligibility. After verification, you'll be all set to join! Good luck, and we look forward to seeing you in the guild!`
       : `Hey <@${userID}>, thanks for your interest! Unfortunately, the guild application is currently **closed** as the guild is full. Please check back later for future opportunities!`;
 
     message.channel.send(replyMessage);
