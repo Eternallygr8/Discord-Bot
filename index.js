@@ -17,7 +17,8 @@ let guildApplicationsOpen = true;
 
 const MODERATOR_IDS = ['659065769275162624', '445222709950152704', '579301731200925697', '587937831930822657'];
 const GUILD_MEMBER_ROLE_ID = '1360904526017597450';
-const EXEMPT_USER_IDS = ['445222709950152704'];
+
+const EXEMPT_USER_IDS = ['445222709950152704']; // These users are exempt from message filter
 
 const BANNED_PATTERNS = [
   /n[\W_]*i[\W_]*g[\W_]*g[\W_]*a/i,
@@ -188,7 +189,7 @@ client.on('interactionCreate', async (interaction) => {
     const cleanWords = BANNED_PATTERNS.map(p => {
       const raw = p.source;
       const cleaned = raw
-        .replace(/\\W_*\*/g, '')
+        .replace(/\\W_\\*/g, '')
         .replace(/\.\*/, '*')
         .replace(/^\/|\/i$/g, '');
       return `• \`${cleaned}\``;
@@ -201,7 +202,12 @@ client.on('interactionCreate', async (interaction) => {
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
-  // Skip banned word check for exempt user(s)
+  // Special response for "join me"
+  if (message.content.toLowerCase() === 'join me' && message.author.id === '445222709950152704') {
+    return message.channel.send(`🔥 Join **Devil @Shad0w_FiendX** in Roblox!\nhttps://www.roblox.com/users/168715118/profile`);
+  }
+
+  // Skip filtering if user is exempt
   if (!EXEMPT_USER_IDS.includes(message.author.id)) {
     const hasBannedWord = BANNED_PATTERNS.some(pattern => pattern.test(message.content));
     if (hasBannedWord && message.channel.id !== EXEMPT_CHANNEL_ID) {
@@ -216,7 +222,7 @@ client.on('messageCreate', async message => {
     }
   }
 
-  // Only send guild join message to users who do NOT have the guild member role
+  // Guild join guidance
   if (
     message.content.toLowerCase().includes('guild') &&
     !message.member?.roles.cache.has(GUILD_MEMBER_ROLE_ID)
@@ -231,7 +237,7 @@ client.on('messageCreate', async message => {
     const ticketChannelId = '1362328988126675056';
 
     const replyMessage = guildApplicationsOpen
-      ? `Hey <@${userID}>, it looks like you're interested in joining the guild! To get started, please make sure you meet the requirements listed in <#${recruitmentChannelId}>. Then, take a look at the guild stats in <#1365329644848550008> and <#1365329738280865883> to decide which guild you'd like to join. Once you've made your choice, you can create a ticket in <#${ticketChannelId}>, and our staff members will verify your eligibility. After verification, you'll be all set to join! Good luck, and we look forward to seeing you in the guild!`
+      ? `Hey <@${userID}>, it looks like you're interested in joining the guild! To become a member, please make sure you meet the requirements listed in <#${recruitmentChannelId}>. Once you've confirmed that, you can create a ticket in <#${ticketChannelId}>, and our staff members will verify your eligibility. After verification, you'll be ready to join! Good luck, and we look forward to seeing you in the guild!`
       : `Hey <@${userID}>, thanks for your interest! Unfortunately, the guild application is currently **closed** as the guild is full. Please check back later for future opportunities!`;
 
     message.channel.send(replyMessage);
