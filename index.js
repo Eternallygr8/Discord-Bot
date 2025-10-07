@@ -85,19 +85,13 @@ client.on('interactionCreate', async (interaction) => {
       !member.user.bot
     );
 
-    // Split mentions in batches of 30
-    const mentionBatches = [];
-    const membersArray = Array.from(eligibleMembers.values());
-    for (let i = 0; i < membersArray.length; i += 30) {
-      const batch = membersArray.slice(i, i + 30).map(m => `<@${m.id}>`).join(' ');
-      mentionBatches.push(batch);
-    }
+    // Create mentions string
+    const mentions = Array.from(eligibleMembers.values()).map(m => `<@${m.id}>`).join(' ');
 
     const messageText = `📢 Please choose your alliance by reacting to the message in <#${SELF_ROLES_CHANNEL_ID}>. If your alliance is not listed, create a ticket in <#${TICKETS_CHANNEL_ID}> so we can add it for you.`;
 
-    for (const batch of mentionBatches) {
-      await channel.send(`${batch}\n\n${messageText}`);
-    }
+    // Send all mentions together
+    await channel.send(`${mentions}\n\n${messageText}`);
 
     await interaction.editReply({ content: '✅ Message sent successfully!' });
 
