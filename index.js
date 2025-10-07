@@ -15,7 +15,7 @@ const client = new Client({
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = '1409913915898462372'; // your server ID
+const GUILD_ID = '1409913915898462372'; // New server ID
 
 // 👇 Excluded role IDs (users with any of these roles will not be pinged)
 const EXCLUDED_ROLE_IDS = [
@@ -36,7 +36,7 @@ const commands = [
   }
 ];
 
-// 🧠 Register slash commands
+// 🧠 Register slash commands for the new server
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
@@ -46,7 +46,7 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
       Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
       { body: commands }
     );
-    console.log('✅ Successfully reloaded application (/) commands.');
+    console.log('✅ Successfully registered application (/) commands in the new server.');
   } catch (error) {
     console.error('❌ Error registering commands:', error);
   }
@@ -64,23 +64,4 @@ client.on('interactionCreate', async (interaction) => {
 
   // Only allow admins to use
   const isAdmin = interaction.member?.permissions.has(PermissionsBitField.Flags.Administrator);
-  if (!isAdmin) return interaction.reply({ content: '❌ You don’t have permission to do that.', ephemeral: true });
-
-  try {
-    const guild = interaction.guild;
-    const channel = interaction.channel;
-
-    // Fetch all members
-    const members = await guild.members.fetch();
-
-    // Filter eligible members (exclude any with the roles listed)
-    const eligibleMembers = members.filter(member => 
-      !member.roles.cache.some(role => EXCLUDED_ROLE_IDS.includes(role.id)) &&
-      !member.user.bot
-    );
-
-    // Create mention list (split into batches of 30 to avoid message length issues)
-    const mentionBatches = [];
-    const membersArray = Array.from(eligibleMembers.values());
-    for (let i = 0; i < membersArray.length; i += 30) {
-      c
+  if (!isAdmin) return interac
