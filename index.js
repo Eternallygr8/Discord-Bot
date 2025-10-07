@@ -15,7 +15,7 @@ const client = new Client({
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = '1409913915898462372'; // New server ID
+const GUILD_ID = '1409913915898462372'; // Your server ID
 
 // Excluded role IDs
 const EXCLUDED_ROLE_IDS = [
@@ -40,7 +40,7 @@ const commands = [
   }
 ];
 
-// Register slash commands for the new server
+// Register slash commands
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
@@ -50,7 +50,7 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
       Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
       { body: commands }
     );
-    console.log('✅ Successfully registered application (/) commands in the new server.');
+    console.log('✅ Successfully registered application (/) commands in the server.');
   } catch (error) {
     console.error('❌ Error registering commands:', error);
   }
@@ -70,16 +70,22 @@ client.on('interactionCreate', async (interaction) => {
   if (!isAdmin) return interaction.reply({ content: '❌ You don’t have permission to do that.', ephemeral: true });
 
   try {
+    // Acknowledge immediately
+    await interaction.deferReply({ ephemeral: true });
+
     const guild = interaction.guild;
     const channel = interaction.channel;
 
+    // Fetch all members
     const members = await guild.members.fetch();
 
-    const eligibleMembers = members.filter(member => 
+    // Filter eligible members
+    const eligibleMembers = members.filter(member =>
       !member.roles.cache.some(role => EXCLUDED_ROLE_IDS.includes(role.id)) &&
       !member.user.bot
     );
 
+    // Split mentions in batches of 30
     const mentionBatches = [];
     const membersArray = Array.from(eligibleMembers.values());
     for (let i = 0; i < membersArray.length; i += 30) {
@@ -89,17 +95,15 @@ client.on('interactionCreate', async (interaction) => {
 
     const messageText = `📢 Please choose your alliance by reacting to the message in <#${SELF_ROLES_CHANNEL_ID}>. If your alliance is not listed, create a ticket in <#${TICKETS_CHANNEL_ID}> so we can add it for you.`;
 
-    await interaction.reply({ content: '✅ Sending pings...', ephemeral: true });
-
     for (const batch of mentionBatches) {
       await channel.send(`${batch}\n\n${messageText}`);
     }
 
-    await interaction.followUp({ content: '✅ Message sent successfully!', ephemeral: true });
+    await interaction.editReply({ content: '✅ Message sent successfully!' });
 
   } catch (err) {
     console.error('❌ Error sending message:', err);
-    await interaction.reply({ content: '❌ Failed to send message.', ephemeral: true });
+    await interaction.editReply({ content: '❌ Failed to send message.' });
   }
 });
 
