@@ -13,7 +13,9 @@ const client = new Client({
   ]
 });
 
-// --- Role & channel IDs ---
+// --- Config ---
+const GUILD_ID = process.env.GUILD_ID; // Your server ID
+const TARGET_ROLE_ID = '1424424815569141870'; // Role to ping and remove
 const EXCLUDED_ROLES = [
   '1424391054064615626',
   '1424252851227463822',
@@ -24,24 +26,34 @@ const EXCLUDED_ROLES = [
   '1424443778004943010',
   '1424359563443834911' // Bot itself
 ];
-const TARGET_ROLE_ID = '1424424815569141870';
-const PING_CHANNEL_ID = '1424334490855014410';
-const SELF_ROLES_CHANNEL_ID = '1424381105586438175';
-const TICKET_CHANNEL_ID = '1424354525535535144';
+const PING_CHANNEL_ID = '1424334490855014410'; // Channel where pingall will send
+const SIX_HOURS = 6 * 60 * 60 * 1000;
 
 // --- Slash commands ---
 const commands = [
-  new SlashCommandBuilder().setName('pingall').setDescription('Ping everyone with the target role'),
-  new SlashCommandBuilder().setName('clean').setDescription('Remove target role from members with excluded roles'),
-  new SlashCommandBuilder().setName('cleanping').setDescription('Clean first then ping after 1 min')
+  new SlashCommandBuilder()
+    .setName('clean')
+    .setDescription('Remove target role from members with excluded roles'),
+  new SlashCommandBuilder()
+    .setName('pingall')
+    .setDescription('Ping everyone with the target role'),
+  new SlashCommandBuilder()
+    .setName('addexclude')
+    .setDescription('Add new role to exclusion list')
+    .addStringOption(option =>
+      option.setName('roleid')
+        .setDescription('Role ID to exclude')
+        .setRequired(true)
+    )
 ].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+
 (async () => {
   try {
     console.log('Registering commands...');
     await rest.put(
-      Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
+      Routes.applicationGuildCommands(process.env.CLIENT_ID, GUILD_ID),
       { body: commands }
     );
     console.log('Commands registered!');
@@ -50,78 +62,94 @@ const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
   }
 })();
 
-// --- Express server ---
+// --- Express server for uptime ---
 app.get('/', (req, res) => res.send('Bot is online!'));
 app.listen(port, () => console.log(`Server running on port ${port}`));
 
-// --- Helper functions ---
-async function cleanRoles(guild) {
-  await guild.members.fetch();
-  guild.members.cache.forEach(member => {
-    if (!member.user.bot && member.roles.cache.has(TARGET_ROLE_ID)) {
-      if (member.roles.cache.some(r => EXCLUDED_ROLES.includes(r.id))) {
-        member.roles.remove(TARGET_ROLE_ID).catch(console.error);
-        console.log(`Removed target role from ${member.user.tag}`);
-      }
-    }
-  });
-}
+// --- Bot ready ---
+client.once('ready', () => {
+  console.log(`Logged in as ${client.user.tag}`);
 
-async function pingAll(guild) {
-  const channel = guild.channels.cache.get(PING_CHANNEL_ID);
-  if (!channel) return console.log('Ping channel not found');
-
-  const message = `<@&${TARGET_ROLE_ID}>\nPlease choose your alliance by reacting to the message in <#${SELF_ROLES_CHANNEL_ID}>. If your alliance is not listed, create a ticket in <#${TICKET_CHANNEL_ID}>.`;
-  channel.send({ content: message, allowedMentions: { parse: ['roles'] } });
-}
+  // Schedule first auto-run after 6 hours
+  setTimeout(() => {
+    runScheduledTasks();
+    setInterval(runScheduledTasks, SIX_HOURS);
+  }, SIX_HOURS);
+});
 
 // --- Scheduled tasks ---
-const SIX_HOURS = 6 * 60 * 60 * 1000; // 6 hours
-
 async function runScheduledTasks() {
-  const guild = await client.guilds.fetch(process.env.GUILD_ID);
-  await cleanRoles(guild);
-
-  setTimeout(async () => {
-    await pingAll(guild);
-  }, 60 * 1000); // 1 min delay
+  await cleanMembers();
+  // Wait 1 minute then pingall
+  setTimeout(pingAllMembers, 60 * 1000);
 }
 
-function scheduleTasks() {
-  runScheduledTasks(); // Run immediately on startup
-  setInterval(runScheduledTasks, SIX_HOURS);
+// --- Clean members ---
+async function cleanMembers() {
+  try {
+    const guild = await client.guilds.fetch(GUILD_ID);
+    await guild.members.fetch();
+
+    const membersToClean = guild.members.cache.filter(member =>
+      member.roles.cache.has(TARGET_ROLE_ID) &&
+      member.roles.cache.some(r => EXCLUDED_ROLES.includes(r.id))
+    );
+
+    for (const [id, member] of membersToClean) {
+      await member.roles.remove(TARGET_ROLE_ID).catch(() => {});
+    }
+
+    console.log(`Cleaned ${membersToClean.size} members`);
+  } catch (err) {
+    console.error('Error in cleaning members:', err);
+  }
+}
+
+// --- Ping all members ---
+async function pingAllMembers(channelId = PING_CHANNEL_ID) {
+  try {
+    const guild = await client.guilds.fetch(GUILD_ID);
+    await guild.members.fetch();
+
+    const membersToPing = guild.members.cache
+      .filter(member => member.roles.cache.has(TARGET_ROLE_ID) && !member.user.bot)
+      .map(member => `<@${member.id}>`);
+
+    if (membersToPing.length === 0) return;
+
+    const channel = await guild.channels.fetch(channelId);
+    const message = `${membersToPing.join(' ')}\nPlease choose your alliance by reacting to the message in <#1424381105586438175>. If your alliance is not listed, create a ticket in <#1424354525535535144>.`;
+
+    await channel.send({ content: message, allowedMentions: { parse: ['users', 'roles'] } });
+    console.log('Pingall sent!');
+  } catch (err) {
+    console.error('Error in pingAllMembers:', err);
+  }
 }
 
 // --- Interaction handler ---
 client.on('interactionCreate', async interaction => {
   if (!interaction.isCommand()) return;
 
-  const guild = interaction.guild;
-  if (!guild) return;
+  const { commandName } = interaction;
 
-  if (interaction.commandName === 'pingall') {
-    await pingAll(guild);
+  if (commandName === 'clean') {
+    await cleanMembers();
+    await interaction.reply({ content: 'Clean command executed.', ephemeral: true });
+    setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+  }
+
+  if (commandName === 'pingall') {
+    await pingAllMembers(interaction.channelId);
     await interaction.reply({ content: 'Pingall executed.', ephemeral: true });
+    setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
   }
 
-  if (interaction.commandName === 'clean') {
-    await cleanRoles(guild);
-    await interaction.reply({ content: 'Clean executed.', ephemeral: true });
+  if (commandName === 'addexclude') {
+    const newRoleId = interaction.options.getString('roleid');
+    if (!EXCLUDED_ROLES.includes(newRoleId)) EXCLUDED_ROLES.push(newRoleId);
+    await interaction.reply({ content: `Role ${newRoleId} added to exclusion list.`, ephemeral: true });
   }
-
-  if (interaction.commandName === 'cleanping') {
-    await cleanRoles(guild);
-    await interaction.reply({ content: 'Clean executed. Pingall will run in 1 minute.', ephemeral: true });
-    setTimeout(async () => {
-      await pingAll(guild);
-    }, 60 * 1000);
-  }
-});
-
-// --- Ready ---
-client.on('ready', () => {
-  console.log(`Logged in as ${client.user.tag}`);
-  scheduleTasks();
 });
 
 // --- Login ---
