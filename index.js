@@ -8,12 +8,12 @@ const port = process.env.PORT || 10000;
 // --- Bot setup ---
 const client = new Client({
   intents: [
-    GatewayIntentBits.Guilds,       // Required for commands
-    GatewayIntentBits.GuildMembers  // Required to fetch member roles
+    GatewayIntentBits.Guilds,        // Required for slash commands
+    GatewayIntentBits.GuildMembers    // Required to fetch members and roles
   ]
 });
 
-// --- Excluded role IDs ---
+// --- Configuration ---
 const EXCLUDED_ROLES = [
   '1424391054064615626',
   '1424252851227463822',
@@ -27,14 +27,20 @@ const EXCLUDED_ROLES = [
 
 const SELF_ROLES_CHANNEL_ID = '1424381105586438175';
 const TICKET_CHANNEL_ID = '1424354525535535144';
+const ROLE_TO_REMOVE = '1424424815569141870';
 
 // --- Slash commands ---
 const commands = [
   new SlashCommandBuilder()
     .setName('pingall')
-    .setDescription('Ping everyone excluding certain roles')
+    .setDescription('Ping everyone excluding certain roles'),
+
+  new SlashCommandBuilder()
+    .setName('cleanrole')
+    .setDescription('Remove a specific role from members who have excluded roles')
 ].map(cmd => cmd.toJSON());
 
+// --- Register commands ---
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
 (async () => {
@@ -46,11 +52,11 @@ const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
     );
     console.log('Commands registered!');
   } catch (err) {
-    console.error(err);
+    console.error('Error registering commands:', err);
   }
 })();
 
-// --- Ready ---
+// --- Ready event ---
 client.on('ready', () => {
   console.log(`Logged in as ${client.user.tag}`);
 });
@@ -59,14 +65,15 @@ client.on('ready', () => {
 client.on('interactionCreate', async interaction => {
   if (!interaction.isCommand()) return;
 
+  const guild = interaction.guild;
+  if (!guild) return;
+
+  await guild.members.fetch(); // Ensure all members are cached
+
+  // --- Pingall command ---
   if (interaction.commandName === 'pingall') {
-    const guild = interaction.guild;
-    if (!guild) return;
-
-    await guild.members.fetch(); // Ensure we have all members
-
     const membersToPing = guild.members.cache
-      .filter(member => !member.user.bot)               // Exclude bots
+      .filter(member => !member.user.bot)
       .filter(member => !member.roles.cache.some(r => EXCLUDED_ROLES.includes(r.id)))
       .map(member => `<@${member.id}>`);
 
@@ -74,13 +81,28 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply('No members to ping.');
     }
 
-    const message = `@everyone ${membersToPing.join(' ')}\nPlease choose your alliance by reacting to the message in <#${SELF_ROLES_CHANNEL_ID}>. If your alliance is not listed, create a ticket in <#${TICKET_CHANNEL_ID}>.`;
+    const message = `**@everyone**\n${membersToPing.join(' ')}\nPlease choose your alliance by reacting to the message in <#${SELF_ROLES_CHANNEL_ID}>. If your alliance is not listed, create a ticket in <#${TICKET_CHANNEL_ID}>.`;
 
-    await interaction.reply({ content: message, allowedMentions: { parse: ['users', 'everyone', 'roles'] } });
+    await interaction.reply({ content: message, allowedMentions: { parse: ['users'] } });
+  }
+
+  // --- Cleanrole command ---
+  if (interaction.commandName === 'cleanrole') {
+    let count = 0;
+    guild.members.cache.forEach(member => {
+      if (member.roles.cache.some(r => EXCLUDED_ROLES.includes(r.id))) {
+        if (member.roles.cache.has(ROLE_TO_REMOVE)) {
+          member.roles.remove(ROLE_TO_REMOVE).catch(console.error);
+          count++;
+        }
+      }
+    });
+
+    await interaction.reply(`✅ Removed the role from ${count} members who had excluded roles.`);
   }
 });
 
-// --- Express server for uptime monitoring ---
+// --- Express server for uptime ---
 app.get('/', (req, res) => {
   res.send('Bot is online!');
 });
