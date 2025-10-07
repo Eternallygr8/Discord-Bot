@@ -36,7 +36,7 @@ const TICKET_CHANNEL_ID = '1424354525535535144';
 const commands = [
   new SlashCommandBuilder()
     .setName('pingall')
-    .setDescription('Ping members with the target role'),
+    .setDescription('Ping the target role'),
 
   new SlashCommandBuilder()
     .setName('removerole')
@@ -67,33 +67,23 @@ client.on('ready', () => {
 client.on('interactionCreate', async interaction => {
   if (!interaction.isCommand()) return;
 
-  // Automatically delete the command message
-  if (interaction.channel && interaction.channel.type === 0) { // guild text channel
-    setTimeout(() => interaction.deleteReply().catch(() => {}), 10000);
-  }
-
   const guild = interaction.guild;
   if (!guild) return;
 
-  await guild.members.fetch(); // fetch all members
-
   // --- /pingall ---
   if (interaction.commandName === 'pingall') {
-    const membersToPing = guild.members.cache
-      .filter(member => member.roles.cache.has(TARGET_ROLE_ID))
-      .map(member => `<@${member.id}>`);
+    const role = guild.roles.cache.get(TARGET_ROLE_ID);
+    if (!role) return interaction.reply('Target role not found.');
 
-    if (membersToPing.length === 0) {
-      return interaction.reply('No members have the target role.');
-    }
+    const message = `${role} \nPlease choose your alliance by reacting to the message in <#${SELF_ROLES_CHANNEL_ID}>. If your alliance is not listed, create a ticket in <#${TICKET_CHANNEL_ID}>.`;
 
-    const message = `@everyone ${membersToPing.join(' ')}\nPlease choose your alliance by reacting to the message in <#${SELF_ROLES_CHANNEL_ID}>. If your alliance is not listed, create a ticket in <#${TICKET_CHANNEL_ID}>.`;
-
-    await interaction.reply({ content: message, allowedMentions: { parse: ['everyone'] } });
+    await interaction.reply({ content: message, allowedMentions: { roles: [TARGET_ROLE_ID] } });
   }
 
   // --- /removerole ---
   if (interaction.commandName === 'removerole') {
+    await guild.members.fetch();
+
     const membersToRemove = guild.members.cache.filter(member =>
       member.roles.cache.has(TARGET_ROLE_ID) &&
       member.roles.cache.some(r => EXCLUDED_ROLES.includes(r.id))
