@@ -8,8 +8,8 @@ const port = process.env.PORT || 10000;
 // --- Bot setup ---
 const client = new Client({
   intents: [
-    GatewayIntentBits.Guilds,        // Required for slash commands
-    GatewayIntentBits.GuildMembers    // Required to fetch members and roles
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers
   ]
 });
 
@@ -27,13 +27,13 @@ const EXCLUDED_ROLES = [
 
 const SELF_ROLES_CHANNEL_ID = '1424381105586438175';
 const TICKET_CHANNEL_ID = '1424354525535535144';
-const ROLE_TO_REMOVE = '1424424815569141870';
+const TARGET_ROLE_ID = '1424424815569141870';
 
 // --- Slash commands ---
 const commands = [
   new SlashCommandBuilder()
     .setName('pingall')
-    .setDescription('Ping everyone excluding certain roles'),
+    .setDescription('Ping members with a specific role excluding certain roles'),
 
   new SlashCommandBuilder()
     .setName('cleanrole')
@@ -73,12 +73,12 @@ client.on('interactionCreate', async interaction => {
   // --- Pingall command ---
   if (interaction.commandName === 'pingall') {
     const membersToPing = guild.members.cache
-      .filter(member => !member.user.bot)
-      .filter(member => !member.roles.cache.some(r => EXCLUDED_ROLES.includes(r.id)))
+      .filter(member => member.roles.cache.has(TARGET_ROLE_ID)) // Has target role
+      .filter(member => !member.roles.cache.some(r => EXCLUDED_ROLES.includes(r.id))) // Exclude specific roles
       .map(member => `<@${member.id}>`);
 
     if (membersToPing.length === 0) {
-      return interaction.reply('No members to ping.');
+      return interaction.reply('No members to ping with that role.');
     }
 
     const message = `**@everyone**\n${membersToPing.join(' ')}\nPlease choose your alliance by reacting to the message in <#${SELF_ROLES_CHANNEL_ID}>. If your alliance is not listed, create a ticket in <#${TICKET_CHANNEL_ID}>.`;
@@ -91,8 +91,8 @@ client.on('interactionCreate', async interaction => {
     let count = 0;
     guild.members.cache.forEach(member => {
       if (member.roles.cache.some(r => EXCLUDED_ROLES.includes(r.id))) {
-        if (member.roles.cache.has(ROLE_TO_REMOVE)) {
-          member.roles.remove(ROLE_TO_REMOVE).catch(console.error);
+        if (member.roles.cache.has(TARGET_ROLE_ID)) {
+          member.roles.remove(TARGET_ROLE_ID).catch(console.error);
           count++;
         }
       }
