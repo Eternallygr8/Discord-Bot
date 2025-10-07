@@ -28,6 +28,10 @@ const EXCLUDED_ROLE_IDS = [
   '1424443778004943010'
 ];
 
+// Channel IDs
+const SELF_ROLES_CHANNEL_ID = '1424381105586438175';
+const TICKETS_CHANNEL_ID = '1424354525535535144';
+
 // Slash commands
 const commands = [
   {
@@ -83,7 +87,7 @@ client.on('interactionCreate', async (interaction) => {
       mentionBatches.push(batch);
     }
 
-    const messageText = '📢 Please choose your alliance by reacting to the message in ⁠ඣ_self-roles. If your alliance is not listed, create a ticket in ⁠ඣ_tickets so we can add it for you.';
+    const messageText = `📢 Please choose your alliance by reacting to the message in <#${SELF_ROLES_CHANNEL_ID}>. If your alliance is not listed, create a ticket in <#${TICKETS_CHANNEL_ID}> so we can add it for you.`;
 
     await interaction.reply({ content: '✅ Sending pings...', ephemeral: true });
 
