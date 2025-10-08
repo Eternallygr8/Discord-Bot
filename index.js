@@ -38,6 +38,7 @@ const SELF_ROLES_CHANNEL_ID = '1424381105586438175';
 const TICKET_CHANNEL_ID = '1424354525535535144';
 
 let autoTasksEnabled = false;
+let autoInterval = null;
 
 // --- Slash commands ---
 const commands = [
@@ -46,7 +47,8 @@ const commands = [
   new SlashCommandBuilder().setName('addexcluded').setDescription('Add a new role to exclusion list.').addStringOption(option =>
     option.setName('roleid').setDescription('Role ID to exclude').setRequired(true)
   ),
-  new SlashCommandBuilder().setName('listexcludedroles').setDescription('List all excluded roles with names.')
+  new SlashCommandBuilder().setName('listexcludedroles').setDescription('List all excluded roles with names.'),
+  new SlashCommandBuilder().setName('toggleauto').setDescription('Toggle automatic 6-hour clean + ping task.')
 ].map(cmd => cmd.toJSON());
 
 // --- Register slash commands ---
@@ -64,15 +66,56 @@ const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
   }
 })();
 
-// --- Ready ---
+// --- Ready event ---
 client.on('ready', () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 });
 
+// --- Auto tasks ---
+async function runAutoTasks() {
+  const guild = client.guilds.cache.get(process.env.GUILD_ID);
+  if (!guild) return console.log('❌ Guild not found.');
+
+  console.log('⚙️ Running scheduled auto-clean and ping tasks...');
+  await guild.members.fetch();
+
+  const targetRole = guild.roles.cache.get(TARGET_ROLE_ID);
+  if (!targetRole) return console.log('❌ Target role not found.');
+
+  // Clean step
+  let removed = 0;
+  for (const member of guild.members.cache.values()) {
+    if (member.roles.cache.has(TARGET_ROLE_ID) && member.roles.cache.some(r => EXCLUDED_ROLES.has(r.id))) {
+      await member.roles.remove(TARGET_ROLE_ID).catch(() => {});
+      removed++;
+    }
+  }
+  console.log(`🧹 Auto clean complete. Removed role from ${removed} members.`);
+
+  // Wait 1 minute before ping
+  setTimeout(async () => {
+    const channel = guild.channels.cache.get(TARGET_CHANNEL_ID);
+    if (!channel) return console.log('❌ Target channel not found.');
+
+    const message = `<@&${TARGET_ROLE_ID}> Please choose your alliance by reacting to the message in <#${SELF_ROLES_CHANNEL_ID}>. If your alliance is not listed, create a ticket in <#${TICKET_CHANNEL_ID}>.`;
+    await channel.send(message);
+    console.log('📢 Auto ping sent.');
+  }, 60 * 1000);
+}
+
+// --- Schedule helper ---
+function scheduleAutoTasks() {
+  if (autoInterval) clearInterval(autoInterval);
+  const sixHours = 6 * 60 * 60 * 1000;
+
+  console.log('⏱️ Auto task scheduling started (6-hour interval).');
+  setTimeout(runAutoTasks, sixHours); // first run after 6 hours
+  autoInterval = setInterval(runAutoTasks, sixHours);
+}
+
 // --- Slash command handler ---
 client.on('interactionCreate', async interaction => {
   if (!interaction.isCommand()) return;
-
   const guild = interaction.guild;
   if (!guild) return;
 
@@ -82,16 +125,14 @@ client.on('interactionCreate', async interaction => {
 
     const message = `<@&${TARGET_ROLE_ID}> Please choose your alliance by reacting to the message in <#${SELF_ROLES_CHANNEL_ID}>. If your alliance is not listed, create a ticket in <#${TICKET_CHANNEL_ID}>.`;
     await channel.send(message);
-    await interaction.reply({ content: 'Ping sent successfully.', ephemeral: true });
-
-    // Auto delete the command reply after 10s
+    await interaction.reply({ content: 'Ping sent successfully.', flags: 64 }); // ephemeral replacement
     setTimeout(() => interaction.deleteReply().catch(() => {}), 10000);
   }
 
   else if (interaction.commandName === 'cleanroles') {
     await guild.members.fetch();
     const targetRole = guild.roles.cache.get(TARGET_ROLE_ID);
-    if (!targetRole) return interaction.reply({ content: 'Target role not found.', ephemeral: true });
+    if (!targetRole) return interaction.reply({ content: 'Target role not found.', flags: 64 });
 
     let removed = 0;
     for (const member of guild.members.cache.values()) {
@@ -101,14 +142,14 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    await interaction.reply({ content: `Removed target role from ${removed} members.`, ephemeral: true });
+    await interaction.reply({ content: `Removed target role from ${removed} members.`, flags: 64 });
     setTimeout(() => interaction.deleteReply().catch(() => {}), 10000);
   }
 
   else if (interaction.commandName === 'addexcluded') {
     const roleId = interaction.options.getString('roleid');
     EXCLUDED_ROLES.add(roleId);
-    await interaction.reply({ content: `✅ Added role ID \`${roleId}\` to exclusion list.`, ephemeral: true });
+    await interaction.reply({ content: `✅ Added role ID \`${roleId}\` to exclusion list.`, flags: 64 });
     setTimeout(() => interaction.deleteReply().catch(() => {}), 10000);
   }
 
@@ -119,7 +160,20 @@ client.on('interactionCreate', async interaction => {
       return role ? `${role.name} — \`${id}\`` : `Unknown Role — \`${id}\``;
     }).join('\n');
 
-    await interaction.reply({ content: `**Excluded Roles:**\n${roleList}`, ephemeral: true });
+    await interaction.reply({ content: `**Excluded Roles:**\n${roleList}`, flags: 64 });
+  }
+
+  else if (interaction.commandName === 'toggleauto') {
+    autoTasksEnabled = !autoTasksEnabled;
+    if (autoTasksEnabled) {
+      scheduleAutoTasks();
+      await interaction.reply({ content: '✅ Auto tasks **enabled**. Will start in 6 hours.', flags: 64 });
+    } else {
+      if (autoInterval) clearInterval(autoInterval);
+      autoInterval = null;
+      await interaction.reply({ content: '⏸️ Auto tasks **disabled**.', flags: 64 });
+    }
+    setTimeout(() => interaction.deleteReply().catch(() => {}), 10000);
   }
 });
 
