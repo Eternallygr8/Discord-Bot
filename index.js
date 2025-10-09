@@ -39,6 +39,7 @@ const TICKET_CHANNEL_ID = '1424354525535535144';
 
 let autoTasksEnabled = false;
 let autoInterval = null;
+let autoRunning = false; // safety flag
 
 // --- Slash commands ---
 const commands = [
@@ -73,6 +74,9 @@ client.on('ready', () => {
 
 // --- Auto tasks ---
 async function runAutoTasks() {
+  if (autoRunning) return console.log('⚠️ Auto task skipped: previous run still in progress.');
+  autoRunning = true;
+
   const guild = client.guilds.cache.get(process.env.GUILD_ID);
   if (!guild) return console.log('❌ Guild not found.');
 
@@ -82,7 +86,7 @@ async function runAutoTasks() {
   const targetRole = guild.roles.cache.get(TARGET_ROLE_ID);
   if (!targetRole) return console.log('❌ Target role not found.');
 
-  // Clean step
+  // --- Clean step ---
   let removed = 0;
   for (const member of guild.members.cache.values()) {
     if (member.roles.cache.has(TARGET_ROLE_ID) && member.roles.cache.some(r => EXCLUDED_ROLES.has(r.id))) {
@@ -92,7 +96,7 @@ async function runAutoTasks() {
   }
   console.log(`🧹 Auto clean complete. Removed role from ${removed} members.`);
 
-  // Wait 1 minute before ping
+  // --- Wait 1 minute before ping ---
   setTimeout(async () => {
     const channel = guild.channels.cache.get(TARGET_CHANNEL_ID);
     if (!channel) return console.log('❌ Target channel not found.');
@@ -100,16 +104,19 @@ async function runAutoTasks() {
     const message = `<@&${TARGET_ROLE_ID}> Please choose your alliance by reacting to the message in <#${SELF_ROLES_CHANNEL_ID}>. If your alliance is not listed, create a ticket in <#${TICKET_CHANNEL_ID}>.`;
     await channel.send(message);
     console.log('📢 Auto ping sent.');
+
+    autoRunning = false; // reset safety flag after completion
   }, 60 * 1000);
 }
 
-// --- Schedule helper ---
-function scheduleAutoTasks() {
+// --- Schedule auto tasks ---
+function scheduleAutoTasks(runImmediately = false) {
   if (autoInterval) clearInterval(autoInterval);
-  const sixHours = 6 * 60 * 60 * 1000;
 
+  const sixHours = 6 * 60 * 60 * 1000;
   console.log('⏱️ Auto task scheduling started (6-hour interval).');
-  setTimeout(runAutoTasks, sixHours); // first run after 6 hours
+
+  if (runImmediately) runAutoTasks(); // first run immediately if desired
   autoInterval = setInterval(runAutoTasks, sixHours);
 }
 
@@ -121,11 +128,11 @@ client.on('interactionCreate', async interaction => {
 
   if (interaction.commandName === 'pingall') {
     const channel = guild.channels.cache.get(TARGET_CHANNEL_ID);
-    if (!channel) return interaction.reply({ content: 'Target channel not found.', ephemeral: true });
+    if (!channel) return interaction.reply({ content: 'Target channel not found.', flags: 64 });
 
     const message = `<@&${TARGET_ROLE_ID}> Please choose your alliance by reacting to the message in <#${SELF_ROLES_CHANNEL_ID}>. If your alliance is not listed, create a ticket in <#${TICKET_CHANNEL_ID}>.`;
     await channel.send(message);
-    await interaction.reply({ content: 'Ping sent successfully.', flags: 64 }); // ephemeral replacement
+    await interaction.reply({ content: 'Ping sent successfully.', flags: 64 });
     setTimeout(() => interaction.deleteReply().catch(() => {}), 10000);
   }
 
@@ -166,7 +173,7 @@ client.on('interactionCreate', async interaction => {
   else if (interaction.commandName === 'toggleauto') {
     autoTasksEnabled = !autoTasksEnabled;
     if (autoTasksEnabled) {
-      scheduleAutoTasks();
+      scheduleAutoTasks(); // first run after 6 hours
       await interaction.reply({ content: '✅ Auto tasks **enabled**. Will start in 6 hours.', flags: 64 });
     } else {
       if (autoInterval) clearInterval(autoInterval);
