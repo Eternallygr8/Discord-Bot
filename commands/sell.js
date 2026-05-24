@@ -33,4 +33,61 @@ module.exports = {
     const amountInput = interaction.options.getString('amount');
     const amount = parseNumber(amountInput);
 
-    if (
+    if (isNaN(amount)) {
+      return interaction.reply({
+        content: '❌ Invalid amount format.',
+        ephemeral: true
+      });
+    }
+
+    const price = interaction.options.getNumber('price');
+    const boost = interaction.options.getNumber('boost') || 0;
+
+    const baseValue = amount * price;
+    const bonus = baseValue * (boost / 100);
+    const total = baseValue + bonus;
+
+    const embed = new EmbedBuilder()
+      .setColor('#00ff88')
+      .setTitle('💰 Sell Calculator')
+      .addFields(
+        {
+          name: '⛽ Amount',
+          value: formatNumber(amount),
+          inline: true
+        },
+        {
+          name: '💵 Price',
+          value: `$${price}`,
+          inline: true
+        },
+        {
+          name: '📈 Boost',
+          value: `${boost}%`,
+          inline: true
+        },
+        {
+          name: '💸 Base Value',
+          value: `$${formatNumber(baseValue)}`,
+          inline: false
+        },
+        {
+          name: '✨ Bonus',
+          value: `$${formatNumber(bonus)}`,
+          inline: false
+        },
+        {
+          name: '🏆 Final Total',
+          value: `$${formatNumber(total)}`,
+          inline: false
+        }
+      )
+      .setFooter({
+        text: 'Oil Empire Companion Bot'
+      });
+
+    await interaction.reply({
+      embeds: [embed]
+    });
+  }
+};
