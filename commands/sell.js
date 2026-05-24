@@ -6,7 +6,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('sell')
     .setDescription('Calculate oil sell value')
-    .addNumberOption(option =>
+    .addStringOption(option =>
       option
         .setName('amount')
         .setDescription('Amount of oil/gas')
@@ -26,7 +26,15 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    const amount = interaction.options.getNumber('amount');
+    const parseNumber = require('../utils/parseNumber');
+    const amountInput = interaction.options.getString('amount');
+    const amount = parseNumber(amountInput);
+    if (isNaN(amount)) {
+  return interaction.reply({
+    content: '❌ Invalid amount format.',
+    ephemeral: true
+  });
+}
     const price = interaction.options.getNumber('price');
     const boost = interaction.options.getNumber('boost') || 0;
 
