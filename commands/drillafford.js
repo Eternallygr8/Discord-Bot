@@ -14,6 +14,15 @@ module.exports = {
         .setName('drill')
         .setDescription('Drill name')
         .setRequired(true)
+        .addChoices(
+      { name: 'Diamond Drill', value: 'diamond' },
+      { name: 'Ruby Drill', value: 'ruby' },
+      { name: 'Fusion Drill', value: 'fusion' },
+      { name: 'Uranium Drill', value: 'uranium' },
+      { name: 'Radium Drill', value: 'radium' },
+      { name: 'Palladium Drill', value: 'palladium' },
+      { name: 'Thorium Drill', value: 'thorium' }
+    )
     )
 
     .addStringOption(option =>
