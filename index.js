@@ -1,5 +1,8 @@
 require('dotenv').config();
 
+const drills = require('./data/drills.json');
+const formatNumber = require('./utils/formatNumber');
+
 const {
   Client,
   GatewayIntentBits,
@@ -16,82 +19,6 @@ const {
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
-
-// --------------------
-// DRILL DATABASE
-// --------------------
-
-const drills = [
-  {
-    id: 'diamond',
-    name: 'Diamond Drill',
-    rarity: 'Divine',
-    tier: 6,
-    cost: 27500000000,
-    gas: 2750
-  },
-  {
-    id: 'ruby',
-    name: 'Ruby Drill',
-    rarity: 'Divine',
-    tier: 7,
-    cost: 85500000000,
-    gas: 4500
-  },
-  {
-    id: 'fusion',
-    name: 'Fusion Drill',
-    rarity: 'Divine',
-    tier: 8,
-    cost: 187500000000,
-    gas: 7500
-  },
-  {
-    id: 'uranium',
-    name: 'Uranium Drill',
-    rarity: 'Divine',
-    tier: 9,
-    cost: 437500000000,
-    gas: 12500
-  },
-  {
-    id: 'radium',
-    name: 'Radium Drill',
-    rarity: 'Prismatic',
-    tier: 10,
-    cost: 810000000000,
-    gas: 18000
-  },
-  {
-    id: 'palladium',
-    name: 'Palladium Drill',
-    rarity: 'Prismatic',
-    tier: 11,
-    cost: 1200000000000,
-    gas: 25000
-  },
-  {
-    id: 'thorium',
-    name: 'Thorium Drill',
-    rarity: 'Prismatic',
-    tier: 12,
-    cost: 2100000000000,
-    gas: 37500
-  }
-];
-
-// --------------------
-// NUMBER FORMATTER
-// --------------------
-
-function formatNumber(num) {
-  if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T';
-  if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
-  if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
-  if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
-
-  return num.toString();
-}
 
 // --------------------
 // SLASH COMMANDS
