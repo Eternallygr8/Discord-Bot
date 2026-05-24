@@ -1,15 +1,13 @@
 require('dotenv').config();
 
-const drills = require('./data/drills.json');
-const formatNumber = require('./utils/formatNumber');
+const fs = require('fs');
 
 const {
   Client,
   GatewayIntentBits,
+  Collection,
   REST,
-  Routes,
-  SlashCommandBuilder,
-  EmbedBuilder
+  Routes
 } = require('discord.js');
 
 // --------------------
@@ -20,25 +18,25 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
+client.commands = new Collection();
+
 // --------------------
-// SLASH COMMANDS
+// LOAD COMMAND FILES
 // --------------------
 
-const commands = [
-  new SlashCommandBuilder()
-    .setName('ping')
-    .setDescription('Replies with pong!'),
+const commandFiles = fs
+  .readdirSync('./commands')
+  .filter(file => file.endsWith('.js'));
 
-  new SlashCommandBuilder()
-    .setName('drill')
-    .setDescription('View drill information')
-    .addStringOption(option =>
-      option
-        .setName('name')
-        .setDescription('Drill name')
-        .setRequired(true)
-    )
-].map(command => command.toJSON());
+const commands = [];
+
+for (const file of commandFiles) {
+  const command = require(`./commands/${file}`);
+
+  client.commands.set(command.data.name, command);
+
+  commands.push(command.data.toJSON());
+}
 
 // --------------------
 // REGISTER COMMANDS
@@ -79,62 +77,18 @@ client.once('ready', () => {
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
-  // --------------------
-  // /PING
-  // --------------------
+  const command = client.commands.get(interaction.commandName);
 
-  if (interaction.commandName === 'ping') {
-    return interaction.reply('🏓 Pong!');
-  }
+  if (!command) return;
 
-  // --------------------
-  // /DRILL
-  // --------------------
-
-  if (interaction.commandName === 'drill') {
-    const drillName = interaction.options.getString('name').toLowerCase();
-
-    const drill = drills.find(d => d.id === drillName);
-
-    if (!drill) {
-      return interaction.reply({
-        content: '❌ Drill not found.',
-        ephemeral: true
-      });
-    }
-
-    const embed = new EmbedBuilder()
-      .setColor('#ffd000')
-      .setTitle(`⛽ ${drill.name}`)
-      .setDescription('Oil Empire Drill Information')
-      .addFields(
-        {
-          name: '💰 Cost',
-          value: `$${formatNumber(drill.cost)}`,
-          inline: true
-        },
-        {
-          name: '⛽ Gas/s',
-          value: `${formatNumber(drill.gas)}/s`,
-          inline: true
-        },
-        {
-          name: '💎 Tier',
-          value: `${drill.tier}`,
-          inline: true
-        },
-        {
-          name: '✨ Rarity',
-          value: drill.rarity,
-          inline: true
-        }
-      )
-      .setFooter({
-        text: 'Oil Empire Companion Bot'
-      });
+  try {
+    await command.execute(interaction);
+  } catch (error) {
+    console.error(error);
 
     await interaction.reply({
-      embeds: [embed]
+      content: '❌ Error executing command.',
+      ephemeral: true
     });
   }
 });
