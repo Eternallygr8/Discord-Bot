@@ -25,9 +25,23 @@ module.exports = {
 
     .addStringOption(option =>
       option
-        .setName('income')
-        .setDescription('Income per second')
+        .setName('oilps')
+        .setDescription('Oil/Gas per second')
         .setRequired(true)
+    )
+
+    .addNumberOption(option =>
+      option
+        .setName('price')
+        .setDescription('Sell price')
+        .setRequired(true)
+    )
+
+    .addNumberOption(option =>
+      option
+        .setName('boost')
+        .setDescription('Cash boost %')
+        .setRequired(false)
     ),
 
   async execute(interaction) {
@@ -46,13 +60,29 @@ module.exports = {
       interaction.options.getString('money')
     );
 
-    const income = parseNumber(
-      interaction.options.getString('income')
+    const oilps = parseNumber(
+      interaction.options.getString('oilps')
     );
 
+    if (isNaN(money) || isNaN(oilps)) {
+      return interaction.reply({
+        content: '❌ Invalid number format.',
+        ephemeral: true
+      });
+    }
+
+    const price = interaction.options.getNumber('price');
+    const boost = interaction.options.getNumber('boost') || 0;
+
+    // Money income per second
+    const incomePerSecond =
+      oilps * price * (1 + boost / 100);
+
+    // Remaining money needed
     const remaining = Math.max(drill.cost - money, 0);
 
-    const seconds = remaining / income;
+    // Time calculation
+    const seconds = remaining / incomePerSecond;
 
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -67,7 +97,7 @@ module.exports = {
           inline: true
         },
         {
-          name: '💰 Cost',
+          name: '💰 Drill Cost',
           value: `$${formatNumber(drill.cost)}`,
           inline: true
         },
@@ -77,16 +107,34 @@ module.exports = {
           inline: true
         },
         {
-          name: '📈 Income/s',
-          value: `$${formatNumber(income)}/s`,
+          name: '⛽ Oil/s',
+          value: `${formatNumber(oilps)}/s`,
           inline: true
+        },
+        {
+          name: '💲 Sell Price',
+          value: `$${price}`,
+          inline: true
+        },
+        {
+          name: '📈 Boost',
+          value: `${boost}%`,
+          inline: true
+        },
+        {
+          name: '💸 Income/s',
+          value: `$${formatNumber(incomePerSecond)}/s`,
+          inline: false
         },
         {
           name: '⌛ Time Remaining',
           value: `${hours}h ${minutes}m`,
           inline: false
         }
-      );
+      )
+      .setFooter({
+        text: 'Oil Empire Companion Bot'
+      });
 
     await interaction.reply({
       embeds: [embed]
