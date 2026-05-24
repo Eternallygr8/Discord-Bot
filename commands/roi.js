@@ -17,6 +17,13 @@ module.exports = {
 
     .addNumberOption(option =>
       option
+        .setName('zone')
+        .setDescription('Zone multiplier')
+        .setRequired(true)
+    )
+
+    .addNumberOption(option =>
+      option
         .setName('price')
         .setDescription('Gas sell price')
         .setRequired(true)
@@ -41,12 +48,16 @@ module.exports = {
       });
     }
 
+    const zone = interaction.options.getNumber('zone');
     const price = interaction.options.getNumber('price');
     const boost = interaction.options.getNumber('boost') || 0;
 
+    // Adjusted gas with zone multiplier
+    const adjustedGas = drill.gas * zone;
+
     // Income per second
     const incomePerSecond =
-      drill.gas * price * (1 + boost / 100);
+      adjustedGas * price * (1 + boost / 100);
 
     // ROI seconds
     const roiSeconds = drill.cost / incomePerSecond;
@@ -66,13 +77,18 @@ module.exports = {
           inline: true
         },
         {
+          name: '🌍 Zone',
+          value: `${zone}x`,
+          inline: true
+        },
+        {
           name: '💰 Cost',
           value: `$${formatNumber(drill.cost)}`,
           inline: true
         },
         {
-          name: '⛽ Gas/s',
-          value: `${formatNumber(drill.gas)}/s`,
+          name: '⛽ Effective Gas/s',
+          value: `${formatNumber(adjustedGas)}/s`,
           inline: true
         },
         {
@@ -88,7 +104,7 @@ module.exports = {
         {
           name: '💸 Income/s',
           value: `$${formatNumber(incomePerSecond)}/s`,
-          inline: true
+          inline: false
         },
         {
           name: '⏳ ROI Time',
