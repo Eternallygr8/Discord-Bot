@@ -6,8 +6,10 @@ db.prepare(`
 CREATE TABLE IF NOT EXISTS profiles (
   userId TEXT PRIMARY KEY,
   money REAL,
-  oilps REAL,
-  boost REAL,
+  gasps REAL,
+  boostedGasps REAL,
+  cashBoost REAL,
+  offlineGasBoost REAL,
   price REAL
 )
 `).run();
