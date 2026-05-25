@@ -10,9 +10,12 @@ const formatNumber = require('../utils/formatNumber');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('profile')
-    .setDescription('Manage your profile')
+    .setDescription('Manage your Oil Empire profile')
 
-    // SET SUBCOMMAND
+    // --------------------
+    // SET
+    // --------------------
+
     .addSubcommand(subcommand =>
       subcommand
         .setName('set')
@@ -25,17 +28,31 @@ module.exports = {
             .setRequired(true)
         )
 
-        .addStringOption(option =>
+        .addNumberOption(option =>
           option
-            .setName('oilps')
-            .setDescription('Oil per second')
+            .setName('cash_boost')
+            .setDescription('Cash boost %')
             .setRequired(true)
         )
 
         .addNumberOption(option =>
           option
-            .setName('boost')
-            .setDescription('Cash boost %')
+            .setName('offline_gas_boost')
+            .setDescription('Offline gas boost %')
+            .setRequired(true)
+        )
+
+        .addStringOption(option =>
+          option
+            .setName('gas_per_second')
+            .setDescription('Base gas per second')
+            .setRequired(true)
+        )
+
+        .addStringOption(option =>
+          option
+            .setName('boosted_gas_per_second')
+            .setDescription('Boosted gas per second')
             .setRequired(true)
         )
 
@@ -47,14 +64,20 @@ module.exports = {
         )
     )
 
-    // VIEW SUBCOMMAND
+    // --------------------
+    // VIEW
+    // --------------------
+
     .addSubcommand(subcommand =>
       subcommand
         .setName('view')
         .setDescription('View your profile')
     )
 
-    // DELETE SUBCOMMAND
+    // --------------------
+    // DELETE
+    // --------------------
+
     .addSubcommand(subcommand =>
       subcommand
         .setName('delete')
@@ -62,7 +85,8 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    const subcommand = interaction.options.getSubcommand();
+    const subcommand =
+      interaction.options.getSubcommand();
 
     const userId = interaction.user.id;
 
@@ -75,14 +99,32 @@ module.exports = {
         interaction.options.getString('money')
       );
 
-      const oilps = parseNumber(
-        interaction.options.getString('oilps')
+      const gasps = parseNumber(
+        interaction.options.getString('gas_per_second')
       );
 
-      const boost = interaction.options.getNumber('boost');
-      const price = interaction.options.getNumber('price');
+      const boostedGasps = parseNumber(
+        interaction.options.getString(
+          'boosted_gas_per_second'
+        )
+      );
 
-      if (isNaN(money) || isNaN(oilps)) {
+      const cashBoost =
+        interaction.options.getNumber('cash_boost');
+
+      const offlineGasBoost =
+        interaction.options.getNumber(
+          'offline_gas_boost'
+        );
+
+      const price =
+        interaction.options.getNumber('price');
+
+      if (
+        isNaN(money) ||
+        isNaN(gasps) ||
+        isNaN(boostedGasps)
+      ) {
         return interaction.reply({
           content: '❌ Invalid number format.',
           ephemeral: true
@@ -91,13 +133,23 @@ module.exports = {
 
       db.prepare(`
         INSERT OR REPLACE INTO profiles
-        (userId, money, oilps, boost, price)
-        VALUES (?, ?, ?, ?, ?)
+        (
+          userId,
+          money,
+          gasps,
+          boostedGasps,
+          cashBoost,
+          offlineGasBoost,
+          price
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `).run(
         userId,
         money,
-        oilps,
-        boost,
+        gasps,
+        boostedGasps,
+        cashBoost,
+        offlineGasBoost,
         price
       );
 
@@ -125,7 +177,7 @@ module.exports = {
 
       const embed = new EmbedBuilder()
         .setColor('#3498db')
-        .setTitle('📊 Your Profile')
+        .setTitle('📊 Your Oil Empire Profile')
         .addFields(
           {
             name: '💰 Money',
@@ -133,13 +185,23 @@ module.exports = {
             inline: true
           },
           {
-            name: '⛽ Oil/s',
-            value: `${formatNumber(profile.oilps)}/s`,
+            name: '📈 Cash Boost',
+            value: `${profile.cashBoost}%`,
             inline: true
           },
           {
-            name: '📈 Boost',
-            value: `${profile.boost}%`,
+            name: '🌙 Offline Gas Boost',
+            value: `${profile.offlineGasBoost}%`,
+            inline: true
+          },
+          {
+            name: '⛽ Base Gas/s',
+            value: `${formatNumber(profile.gasps)}/s`,
+            inline: true
+          },
+          {
+            name: '🚀 Boosted Gas/s',
+            value: `${formatNumber(profile.boostedGasps)}/s`,
             inline: true
           },
           {
@@ -147,7 +209,10 @@ module.exports = {
             value: `$${profile.price}`,
             inline: true
           }
-        );
+        )
+        .setFooter({
+          text: 'Oil Empire Companion Bot'
+        });
 
       return interaction.reply({
         embeds: [embed]
