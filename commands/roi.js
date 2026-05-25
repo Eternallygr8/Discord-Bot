@@ -26,7 +26,7 @@ module.exports = {
 
     .addNumberOption(option =>
       option
-        .setName('zone multiplier')
+        .setName('zone_multiplier')
         .setDescription('Zone multiplier')
         .setRequired(true)
     )
