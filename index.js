@@ -75,6 +75,26 @@ client.once('ready', () => {
 // --------------------
 
 client.on('interactionCreate', async interaction => {
+ if (interaction.isAutocomplete()) {
+  const drills = require('./data/drills.json');
+
+  const focusedValue =
+    interaction.options.getFocused().toLowerCase();
+
+  const filtered = drills
+    .filter(drill =>
+      drill.name.toLowerCase().includes(focusedValue)
+    )
+    .slice(0, 25);
+
+  await interaction.respond(
+    filtered.map(drill => ({
+      name: drill.name,
+      value: drill.id
+    }))
+  );
+  return;
+}
   if (!interaction.isChatInputCommand()) return;
 
   const command = client.commands.get(interaction.commandName);
