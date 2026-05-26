@@ -1,7 +1,14 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const {
+  SlashCommandBuilder,
+  EmbedBuilder
+} = require('discord.js');
+
+const db = require('../database');
 
 const parseNumber = require('../utils/parseNumber');
 const formatNumber = require('../utils/formatNumber');
+const calculateIncome = require('../utils/calculateIncome');
+const formatTime = require('../utils/formatTime');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -13,122 +20,84 @@ module.exports = {
         .setName('target')
         .setDescription('Target money')
         .setRequired(true)
-    )
-
-    .addStringOption(option =>
-      option
-        .setName('current')
-        .setDescription('Current money')
-        .setRequired(true)
-    )
-
-    .addStringOption(option =>
-      option
-        .setName('oilps')
-        .setDescription('Oil/Gas per second')
-        .setRequired(true)
-    )
-
-    .addNumberOption(option =>
-      option
-        .setName('price')
-        .setDescription('Sell price')
-        .setRequired(true)
-    )
-
-    .addNumberOption(option =>
-      option
-        .setName('boost')
-        .setDescription('Cash boost %')
-        .setRequired(false)
     ),
 
   async execute(interaction) {
-    const target = parseNumber(
-      interaction.options.getString('target')
-    );
+    const userId = interaction.user.id;
 
-    const current = parseNumber(
-      interaction.options.getString('current')
-    );
+    const profile = db.prepare(`
+      SELECT * FROM profiles
+      WHERE userId = ?
+    `).get(userId);
 
-    const oilps = parseNumber(
-      interaction.options.getString('oilps')
-    );
-
-    if (
-      isNaN(target) ||
-      isNaN(current) ||
-      isNaN(oilps)
-    ) {
+    if (!profile) {
       return interaction.reply({
-        content: '❌ Invalid number format.',
+        content:
+          '❌ No profile found. Use /profile set first.',
         ephemeral: true
       });
     }
 
-    const price = interaction.options.getNumber('price');
-    const boost = interaction.options.getNumber('boost') || 0;
+    const target = parseNumber(
+      interaction.options.getString('target')
+    );
 
-    // Money income per second
-    const incomePerSecond =
-      oilps * price * (1 + boost / 100);
+    if (isNaN(target)) {
+      return interaction.reply({
+        content: '❌ Invalid target format.',
+        ephemeral: true
+      });
+    }
 
-    // Remaining money needed
-    const remaining = Math.max(target - current, 0);
+    const incomePerSecond = calculateIncome(
+      profile.boostedGasps,
+      profile.price,
+      profile.cashBoost
+    );
 
-    // Time calculation
-    const seconds = remaining / incomePerSecond;
+    const remaining =
+      Math.max(target - profile.money, 0);
 
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
+    const seconds =
+      remaining / incomePerSecond;
 
     const embed = new EmbedBuilder()
       .setColor('#9b59b6')
       .setTitle('⏳ Time To Target')
+
       .addFields(
         {
           name: '🎯 Target',
-          value: `$${formatNumber(target)}`,
+          value:
+            `$${formatNumber(target)}`,
           inline: true
         },
         {
-          name: '💰 Current',
-          value: `$${formatNumber(current)}`,
+          name: '💰 Current Money',
+          value:
+            `$${formatNumber(profile.money)}`,
           inline: true
         },
         {
           name: '💸 Remaining',
-          value: `$${formatNumber(remaining)}`,
-          inline: true
-        },
-        {
-          name: '⛽ Oil/s',
-          value: `${formatNumber(oilps)}/s`,
-          inline: true
-        },
-        {
-          name: '💲 Sell Price',
-          value: `$${price}`,
-          inline: true
-        },
-        {
-          name: '📈 Boost',
-          value: `${boost}%`,
+          value:
+            `$${formatNumber(remaining)}`,
           inline: true
         },
         {
           name: '💵 Income/s',
-          value: `$${formatNumber(incomePerSecond)}/s`,
-          inline: false
+          value:
+            `$${formatNumber(incomePerSecond)}/s`,
+          inline: true
         },
         {
-          name: '⌛ Time Remaining',
-          value: `${hours}h ${minutes}m ${secs}s`,
+          name: '⌛ Estimated Time',
+          value:
+            formatTime(seconds),
           inline: false
         }
       )
+
       .setFooter({
         text: 'Oil Empire Companion Bot'
       });
