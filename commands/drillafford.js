@@ -1,13 +1,19 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const {
+  SlashCommandBuilder,
+  EmbedBuilder
+} = require('discord.js');
 
 const drills = require('../data/drills.json');
-const parseNumber = require('../utils/parseNumber');
+const db = require('../database');
+
 const formatNumber = require('../utils/formatNumber');
+const calculateIncome = require('../utils/calculateIncome');
+const formatTime = require('../utils/formatTime');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('drillafford')
-    .setDescription('Calculate time needed to afford a drill')
+    .setDescription('Calculate time until you can afford a drill')
 
     .addStringOption(option =>
       option
@@ -15,40 +21,30 @@ module.exports = {
         .setDescription('Drill name')
         .setRequired(true)
         .setAutocomplete(true)
-    )
-
-    .addStringOption(option =>
-      option
-        .setName('money')
-        .setDescription('Current money')
-        .setRequired(true)
-    )
-
-    .addStringOption(option =>
-      option
-        .setName('oilps')
-        .setDescription('Oil/Gas per second')
-        .setRequired(true)
-    )
-
-    .addNumberOption(option =>
-      option
-        .setName('price')
-        .setDescription('Sell price')
-        .setRequired(true)
-    )
-
-    .addNumberOption(option =>
-      option
-        .setName('boost')
-        .setDescription('Cash boost %')
-        .setRequired(false)
     ),
 
   async execute(interaction) {
-    const drillName = interaction.options.getString('drill').toLowerCase();
+    const userId = interaction.user.id;
 
-    const drill = drills.find(d => d.id === drillName);
+    const profile = db.prepare(`
+      SELECT * FROM profiles
+      WHERE userId = ?
+    `).get(userId);
+
+    if (!profile) {
+      return interaction.reply({
+        content:
+          '❌ No profile found. Use /profile set first.',
+        ephemeral: true
+      });
+    }
+
+    const drillId =
+      interaction.options.getString('drill');
+
+    const drill = drills.find(
+      d => d.id === drillId
+    );
 
     if (!drill) {
       return interaction.reply({
@@ -57,84 +53,57 @@ module.exports = {
       });
     }
 
-    const money = parseNumber(
-      interaction.options.getString('money')
+    const incomePerSecond = calculateIncome(
+      profile.boostedGasps,
+      profile.price,
+      profile.cashBoost
     );
 
-    const oilps = parseNumber(
-      interaction.options.getString('oilps')
-    );
+    const remaining =
+      Math.max(drill.cost - profile.money, 0);
 
-    if (isNaN(money) || isNaN(oilps)) {
-      return interaction.reply({
-        content: '❌ Invalid number format.',
-        ephemeral: true
-      });
-    }
-
-    const price = interaction.options.getNumber('price');
-    const boost = interaction.options.getNumber('boost') || 0;
-
-    // Money income per second
-    const incomePerSecond =
-      oilps * price * (1 + boost / 100);
-
-    // Remaining money needed
-    const remaining = Math.max(drill.cost - money, 0);
-
-    // Time calculation
-    const seconds = remaining / incomePerSecond;
-
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
+    const seconds =
+      remaining / incomePerSecond;
 
     const embed = new EmbedBuilder()
-      .setColor('#00bfff')
-      .setTitle('⏳ Drill Afford Calculator')
+      .setColor('#2ecc71')
+      .setTitle(`⛽ ${drill.name}`)
+
       .addFields(
         {
-          name: '⛽ Drill',
-          value: drill.name,
-          inline: true
-        },
-        {
           name: '💰 Drill Cost',
-          value: `$${formatNumber(drill.cost)}`,
+          value:
+            `$${formatNumber(drill.cost)}`,
           inline: true
         },
         {
           name: '💵 Current Money',
-          value: `$${formatNumber(money)}`,
+          value:
+            `$${formatNumber(profile.money)}`,
           inline: true
         },
         {
-          name: '⛽ Oil/s',
-          value: `${formatNumber(oilps)}/s`,
+          name: '💸 Remaining',
+          value:
+            `$${formatNumber(remaining)}`,
           inline: true
         },
         {
-          name: '💲 Sell Price',
-          value: `$${price}`,
+          name: '📈 Income/s',
+          value:
+            `$${formatNumber(incomePerSecond)}/s`,
           inline: true
         },
         {
-          name: '📈 Boost',
-          value: `${boost}%`,
-          inline: true
-        },
-        {
-          name: '💸 Income/s',
-          value: `$${formatNumber(incomePerSecond)}/s`,
-          inline: false
-        },
-        {
-          name: '⌛ Time Remaining',
-          value: `${hours}h ${minutes}m`,
+          name: '⌛ Time Needed',
+          value:
+            formatTime(seconds),
           inline: false
         }
       )
+
       .setFooter({
-        text: 'Oil Empire Companion Bot'
+        text: 'Oil Empire Affordability Calculator'
       });
 
     await interaction.reply({
