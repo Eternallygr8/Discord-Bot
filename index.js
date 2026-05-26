@@ -17,7 +17,8 @@ const {
   Client,
   GatewayIntentBits,
   REST,
-  Routes
+  Routes,
+  Collection
 } = require('discord.js');
 
 // --------------------
