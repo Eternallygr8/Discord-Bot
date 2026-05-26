@@ -1,12 +1,19 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const {
+  SlashCommandBuilder,
+  EmbedBuilder
+} = require('discord.js');
 
 const drills = require('../data/drills.json');
+const db = require('../database');
+
 const formatNumber = require('../utils/formatNumber');
+const calculateIncome = require('../utils/calculateIncome');
+const formatTime = require('../utils/formatTime');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('roi')
-    .setDescription('Calculate ROI/payback time for a drill')
+    .setDescription('Calculate drill ROI')
 
     .addStringOption(option =>
       option
@@ -18,29 +25,36 @@ module.exports = {
 
     .addNumberOption(option =>
       option
-        .setName('zone_multiplier')
+        .setName('zone')
         .setDescription('Zone multiplier')
         .setRequired(true)
-    )
-
-    .addNumberOption(option =>
-      option
-        .setName('price')
-        .setDescription('Gas sell price')
-        .setRequired(true)
-    )
-
-    .addNumberOption(option =>
-      option
-        .setName('boost')
-        .setDescription('Cash boost %')
-        .setRequired(false)
     ),
 
   async execute(interaction) {
-    const drillName = interaction.options.getString('drill').toLowerCase();
+    const userId = interaction.user.id;
 
-    const drill = drills.find(d => d.id === drillName);
+    const profile = db.prepare(`
+      SELECT * FROM profiles
+      WHERE userId = ?
+    `).get(userId);
+
+    if (!profile) {
+      return interaction.reply({
+        content:
+          '❌ No profile found. Use /profile set first.',
+        ephemeral: true
+      });
+    }
+
+    const drillId =
+      interaction.options.getString('drill');
+
+    const zone =
+      interaction.options.getNumber('zone');
+
+    const drill = drills.find(
+      d => d.id === drillId
+    );
 
     if (!drill) {
       return interaction.reply({
@@ -49,70 +63,54 @@ module.exports = {
       });
     }
 
-    const zone = interaction.options.getNumber('zone');
-    const price = interaction.options.getNumber('price');
-    const boost = interaction.options.getNumber('boost') || 0;
+    const boostedGas =
+      drill.gas * zone;
 
-    // Adjusted gas with zone multiplier
-    const adjustedGas = drill.gas * zone;
+    const incomePerSecond = calculateIncome(
+      boostedGas,
+      profile.price,
+      profile.cashBoost
+    );
 
-    // Income per second
-    const incomePerSecond =
-      adjustedGas * price * (1 + boost / 100);
-
-    // ROI seconds
-    const roiSeconds = drill.cost / incomePerSecond;
-
-    // Time formatting
-    const hours = Math.floor(roiSeconds / 3600);
-    const minutes = Math.floor((roiSeconds % 3600) / 60);
-    const seconds = Math.floor(roiSeconds % 60);
+    const roiSeconds =
+      drill.cost / incomePerSecond;
 
     const embed = new EmbedBuilder()
-      .setColor('#ffaa00')
-      .setTitle('📈 ROI Calculator')
+      .setColor('#e67e22')
+      .setTitle(`📈 ${drill.name} ROI`)
+
       .addFields(
         {
-          name: '⛽ Drill',
-          value: drill.name,
-          inline: true
-        },
-        {
-          name: '🌍 Zone',
-          value: `${zone}x`,
-          inline: true
-        },
-        {
           name: '💰 Cost',
-          value: `$${formatNumber(drill.cost)}`,
+          value:
+            `$${formatNumber(drill.cost)}`,
           inline: true
         },
         {
           name: '⛽ Effective Gas/s',
-          value: `${formatNumber(adjustedGas)}/s`,
+          value:
+            `${formatNumber(boostedGas)}/s`,
           inline: true
         },
         {
-          name: '💵 Price',
-          value: `$${price}`,
+          name: '📍 Zone Multiplier',
+          value: `${zone}x`,
           inline: true
         },
         {
-          name: '📈 Boost',
-          value: `${boost}%`,
+          name: '💵 Income/s',
+          value:
+            `$${formatNumber(incomePerSecond)}/s`,
           inline: true
         },
         {
-          name: '💸 Income/s',
-          value: `$${formatNumber(incomePerSecond)}/s`,
-          inline: false
-        },
-        {
-          name: '⏳ ROI Time',
-          value: `${hours}h ${minutes}m ${seconds}s`,
+          name: '⌛ ROI Time',
+          value:
+            formatTime(roiSeconds),
           inline: false
         }
       )
+
       .setFooter({
         text: 'Oil Empire ROI Calculator'
       });
