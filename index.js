@@ -2,6 +2,25 @@ require('dotenv').config();
 
 const fs = require('fs');
 
+require('dotenv').config();
+
+const express = require('express');
+const app = express();
+
+app.get('/', (req, res) => {
+  res.send('Bot is running.');
+});
+
+app.listen(3000, () => {
+  console.log('Web server ready.');
+});
+
+const {
+  Client,
+  GatewayIntentBits,
+  REST,
+  Routes
+} = require('discord.js');
 const {
   Client,
   GatewayIntentBits,
