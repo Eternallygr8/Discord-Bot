@@ -2,8 +2,6 @@ require('dotenv').config();
 
 const fs = require('fs');
 
-require('dotenv').config();
-
 const express = require('express');
 const app = express();
 
@@ -18,13 +16,6 @@ app.listen(3000, () => {
 const {
   Client,
   GatewayIntentBits,
-  REST,
-  Routes
-} = require('discord.js');
-const {
-  Client,
-  GatewayIntentBits,
-  Collection,
   REST,
   Routes
 } = require('discord.js');
