@@ -12,10 +12,6 @@ module.exports = {
     .setName('profile')
     .setDescription('Manage your Oil Empire profile')
 
-    // --------------------
-    // SET
-    // --------------------
-
     .addSubcommand(subcommand =>
       subcommand
         .setName('set')
@@ -25,58 +21,50 @@ module.exports = {
           option
             .setName('money')
             .setDescription('Current money')
-            .setRequired(true)
+            .setRequired(false)
         )
 
         .addNumberOption(option =>
           option
             .setName('cash_boost')
             .setDescription('Cash boost %')
-            .setRequired(true)
+            .setRequired(false)
         )
 
         .addNumberOption(option =>
           option
             .setName('offline_gas_boost')
             .setDescription('Offline gas boost %')
-            .setRequired(true)
+            .setRequired(false)
         )
 
         .addStringOption(option =>
           option
             .setName('gas_per_second')
             .setDescription('Base gas per second')
-            .setRequired(true)
+            .setRequired(false)
         )
 
         .addStringOption(option =>
           option
             .setName('boosted_gas_per_second')
             .setDescription('Boosted gas per second')
-            .setRequired(true)
+            .setRequired(false)
         )
 
         .addNumberOption(option =>
           option
             .setName('price')
             .setDescription('Sell price')
-            .setRequired(true)
+            .setRequired(false)
         )
     )
-
-    // --------------------
-    // VIEW
-    // --------------------
 
     .addSubcommand(subcommand =>
       subcommand
         .setName('view')
         .setDescription('View your profile')
     )
-
-    // --------------------
-    // DELETE
-    // --------------------
 
     .addSubcommand(subcommand =>
       subcommand
@@ -95,30 +83,73 @@ module.exports = {
     // --------------------
 
     if (subcommand === 'set') {
-      const money = parseNumber(
-        interaction.options.getString('money')
-      );
+      let profile = db.prepare(`
+        SELECT * FROM profiles
+        WHERE userId = ?
+      `).get(userId);
 
-      const gasps = parseNumber(
-        interaction.options.getString('gas_per_second')
-      );
+      if (!profile) {
+        profile = {
+          money: 0,
+          gasps: 0,
+          boostedGasps: 0,
+          cashBoost: 0,
+          offlineGasBoost: 0,
+          price: 0
+        };
+      }
 
-      const boostedGasps = parseNumber(
+      const moneyInput =
+        interaction.options.getString('money');
+
+      const gaspsInput =
+        interaction.options.getString('gas_per_second');
+
+      const boostedGaspsInput =
         interaction.options.getString(
           'boosted_gas_per_second'
-        )
-      );
+        );
 
-      const cashBoost =
+      const cashBoostInput =
         interaction.options.getNumber('cash_boost');
 
-      const offlineGasBoost =
+      const offlineGasBoostInput =
         interaction.options.getNumber(
           'offline_gas_boost'
         );
 
-      const price =
+      const priceInput =
         interaction.options.getNumber('price');
+
+      const money =
+        moneyInput !== null
+          ? parseNumber(moneyInput)
+          : profile.money;
+
+      const gasps =
+        gaspsInput !== null
+          ? parseNumber(gaspsInput)
+          : profile.gasps;
+
+      const boostedGasps =
+        boostedGaspsInput !== null
+          ? parseNumber(boostedGaspsInput)
+          : profile.boostedGasps;
+
+      const cashBoost =
+        cashBoostInput !== null
+          ? cashBoostInput
+          : profile.cashBoost;
+
+      const offlineGasBoost =
+        offlineGasBoostInput !== null
+          ? offlineGasBoostInput
+          : profile.offlineGasBoost;
+
+      const price =
+        priceInput !== null
+          ? priceInput
+          : profile.price;
 
       if (
         isNaN(money) ||
